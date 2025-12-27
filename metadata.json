@@ -1,0 +1,8 @@
+{
+  "name": "Nutridiet - Personalized Health & Nutrition AI",
+  "description": "A high-fidelity personalized health platform featuring AI-driven audits, ML weight predictions, and manual-input nutrition tracking using the Service Layer pattern.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
