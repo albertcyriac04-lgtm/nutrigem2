@@ -31,11 +31,11 @@ Django REST API backend for NutriDiet nutrition tracking application with MySQL 
    - Copy `.env.example` to `.env`
    - Update the database credentials in `.env`:
      ```
-     DB_NAME=nutrigem_db
-     DB_USER=root
-     DB_PASSWORD=1234
-     DB_HOST=xylo
-     DB_PORT=3306
+     DB_NAME=databasename
+     DB_USER=username
+     DB_PASSWORD=password
+     DB_HOST=hostname
+     DB_PORT=enter port number
      ```
 
 5. **Run migrations**:
