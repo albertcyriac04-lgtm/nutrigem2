@@ -138,8 +138,7 @@
                 <label
                     class="relative flex items-center justify-between p-6 border-2 rounded-2xl cursor-pointer transition-all hover:bg-blue-50/50 group {% if forloop.first %}border-blue-600 bg-blue-50/50{% else %}border-slate-100 bg-white{% endif %}"
                     onclick="selectPlan('{{ plan.id }}', this)">
-                    <input type="radio" name="plan_selection" value="{{ plan.id }}" class="hidden" {% if forloop.first
-                        %} checked {% endif %}>
+                    <input type="radio" name="plan_selection" value="{{ plan.id }}" class="hidden" {% if forloop.first %} checked {% endif %}>
                     <div class="flex-1">
                         <div class="flex items-center gap-2">
                             <h4 class="font-black text-slate-800 text-lg">{{ plan.name }}</h4>
