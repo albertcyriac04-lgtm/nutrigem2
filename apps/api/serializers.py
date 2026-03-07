@@ -74,6 +74,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'age', 'gender', 'height', 'weight', 
             'target_weight', 'activity_multiplier', 
+            'food_allergies', 'medical_conditions', 'diet_restrictions', 'profile_image_url',
+            'subscription_status', 'subscription_expires',
             'consumption_logs', 'weight_records',
             'created_at', 'updated_at'
         ]
@@ -86,6 +88,9 @@ class UserProfileListSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'id', 'name', 'age', 'gender', 'height', 'weight', 
-            'target_weight', 'activity_multiplier', 'created_at', 'updated_at'
+            'target_weight', 'activity_multiplier', 
+            'food_allergies', 'medical_conditions', 'diet_restrictions', 'profile_image_url',
+            'subscription_status',
+            'created_at', 'updated_at'
         ]
 

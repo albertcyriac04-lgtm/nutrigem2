@@ -30,8 +30,15 @@
                 Upgrade to Pro
             </button>
             {% else %}
-            <div class="bg-blue-50 text-blue-700 px-6 py-3 rounded-2xl border border-blue-100 font-bold text-sm">
-                Next billing: {{ profile.subscription_expires|date:"M d, Y" }}
+            <div class="flex flex-col items-center gap-3">
+                <div
+                    class="bg-blue-50 text-blue-700 px-6 py-3 rounded-2xl border border-blue-100 font-bold text-sm text-center">
+                    Active until {{ profile.subscription_expires|date:"M d, Y" }}
+                </div>
+                <button onclick="document.getElementById('paymentModal').classList.remove('hidden')"
+                    class="w-full px-4 py-2 bg-slate-800 hover:bg-black text-white text-xs font-black rounded-xl transition-all">
+                    Extend / Renew Plan
+                </button>
             </div>
             {% endif %}
         </div>
@@ -53,6 +60,8 @@
                         <th class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Method</th>
                         <th class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Amount</th>
                         <th class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <th class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">
+                            Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -81,10 +90,18 @@
                                 {{ txn.status }}
                             </span>
                         </td>
+                        <td class="px-6 py-4 text-right">
+                            {% if txn.status == 'Success' %}
+                            <a href="{% url 'download_invoice' txn.transaction_id %}" target="_blank"
+                                class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 justify-end">
+                                <i class="fas fa-download"></i> Invoice
+                            </a>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center">
+                        <td colspan="6" class="px-6 py-12 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <div
                                     class="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
@@ -116,19 +133,30 @@
         </div>
 
         <div class="p-8 space-y-6">
-            {% for plan in plans %}
-            <div class="border-2 border-blue-600 bg-blue-50/50 rounded-2xl p-6 flex items-center justify-between">
-                <div>
-                    <h4 class="font-black text-slate-800 text-lg">{{ plan.name }}</h4>
-                    <p class="text-slate-500 text-xs">{{ plan.description }}</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-3xl font-black text-blue-600">${{ plan.amount }}</p>
-                    <p class="text-[10px] font-bold text-blue-400 uppercase">Monthly</p>
-                </div>
-                <input type="hidden" id="selected_plan_id" value="{{ plan.id }}">
+            <div class="space-y-4">
+                {% for plan in plans %}
+                <label
+                    class="relative flex items-center justify-between p-6 border-2 rounded-2xl cursor-pointer transition-all hover:bg-blue-50/50 group {% if forloop.first %}border-blue-600 bg-blue-50/50{% else %}border-slate-100 bg-white{% endif %}"
+                    onclick="selectPlan('{{ plan.id }}', this)">
+                    <input type="radio" name="plan_selection" value="{{ plan.id }}" class="hidden" {% if forloop.first
+                        %} checked {% endif %}>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <h4 class="font-black text-slate-800 text-lg">{{ plan.name }}</h4>
+                            <div
+                                class="w-2 h-2 rounded-full bg-blue-500 opacity-0 group-[.border-blue-600]:opacity-100">
+                            </div>
+                        </div>
+                        <p class="text-slate-500 text-xs">{{ plan.description }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-3xl font-black text-blue-600">${{ plan.amount }}</p>
+                        <p class="text-[10px] font-bold text-blue-400 uppercase">Monthly</p>
+                    </div>
+                </label>
+                {% endfor %}
+                <input type="hidden" id="selected_plan_id" value="{{ plans.0.id }}">
             </div>
-            {% endfor %}
 
             <div class="space-y-3">
                 <label class="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Payment
@@ -191,6 +219,21 @@
         </div>
     </div>
 </div>
+
+<script>
+    function selectPlan(planId, element) {
+        // Clear all labels
+        document.querySelectorAll('label[onclick^="selectPlan"]').forEach(lbl => {
+            lbl.classList.remove('border-blue-600', 'bg-blue-50/50');
+            lbl.classList.add('border-slate-100', 'bg-white');
+        });
+        // Select clicked
+        element.classList.remove('border-slate-100', 'bg-white');
+        element.classList.add('border-blue-600', 'bg-blue-50/50');
+        // Update hidden
+        document.getElementById('selected_plan_id').value = planId;
+    }
+</script>
 
 <script>
     function processDummyPayment() {

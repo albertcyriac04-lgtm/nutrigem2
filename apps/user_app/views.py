@@ -11,41 +11,24 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 import json
 import uuid
-from .models import UserProfile, FoodItem, ConsumptionLog, WeightRecord, WaterLog, DailyDietPlan, DailyMealLog, SubscriptionPlan, Transaction
-from .serializers import UserProfileSerializer, FoodItemSerializer, ConsumptionLogSerializer, WeightRecordSerializer
+from api.models import UserProfile, FoodItem, ConsumptionLog, WeightRecord, WaterLog, DailyDietPlan, DailyMealLog, SubscriptionPlan, Transaction
+from api.serializers import UserProfileSerializer, FoodItemSerializer, ConsumptionLogSerializer, WeightRecordSerializer
 from django.utils import timezone
-from .ml_utils import predict_weight_trend
-from .ai_utils import generate_indian_diet, generate_report_summary
-from .report_utils import export_to_excel, export_to_pdf
+from api.ml_utils import predict_weight_trend
+from api.ai_utils import generate_indian_diet, generate_report_summary
+from api.report_utils import export_to_excel, export_to_pdf
 import google.generativeai as genai
 from django.contrib import messages
 from django.http import HttpResponse
-from django_otp import user_has_device
+
 
 def verified_user_redirect(request):
     """
-    Helper to ensure user is authenticated and MFA verified.
+    Helper to ensure user is authenticated.
     Redirects to landing if not logged in.
-    Redirects to MFA setup if no device configured.
-    Redirects to MFA login if device exists but not verified.
     """
     if not request.user.is_authenticated:
         return redirect('landing')
-    
-    # django-otp adds is_verified() method to user
-    # We check if it's a method and call it, or check attribute
-    is_verified = False
-    if hasattr(request.user, 'is_verified'):
-        if callable(request.user.is_verified):
-            is_verified = request.user.is_verified()
-        else:
-            is_verified = request.user.is_verified
-            
-    if not is_verified:
-        if user_has_device(request.user):
-            return redirect('two_factor:login')
-        else:
-            return redirect('two_factor:setup')
     return None
 
 
@@ -106,7 +89,7 @@ def index(request):
 
 
 class UserRegistrationForm(UserCreationForm):
-    email = forms.EmailField(required=True, help_text="Required for Multi-Factor Authentication")
+    email = forms.EmailField(required=True, help_text="Required for account verification")
 
     class Meta(UserCreationForm.Meta):
         fields = UserCreationForm.Meta.fields + ('email',)
@@ -120,8 +103,25 @@ class UserRegistrationForm(UserCreationForm):
 
 
 def login_view(request):
-    """Redirect to two-factor login"""
-    return redirect('two_factor:login')
+    """Simple username/password login"""
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('/admin/')
+        return redirect('index')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            if user.is_staff:
+                return redirect('/admin/')
+            return redirect('index')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    
+    return render(request, 'login.html')
 
 
 def register_view(request):
@@ -145,7 +145,7 @@ def register_view(request):
                 activity_multiplier=1.55
             )
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-            return redirect('two_factor:setup')  # Redirect to MFA setup after registration
+            return redirect('index')  # Redirect to dashboard after registration
     else:
         form = UserRegistrationForm()
     
@@ -226,6 +226,10 @@ def settings_view(request):
             profile.target_weight = float(request.POST.get('target_weight', profile.target_weight))
             profile.activity_multiplier = float(request.POST.get('activity_multiplier', profile.activity_multiplier))
             profile.dietary_preference = request.POST.get('dietary_preference', profile.dietary_preference)
+            profile.food_allergies = request.POST.get('food_allergies', profile.food_allergies)
+            profile.medical_conditions = request.POST.get('medical_conditions', profile.medical_conditions)
+            profile.diet_restrictions = request.POST.get('diet_restrictions', profile.diet_restrictions)
+            profile.profile_image_url = request.POST.get('profile_image_url', profile.profile_image_url)
             profile.save()
             
             # Update user fields
@@ -472,16 +476,8 @@ def remove_meal_api(request):
 
 def ai_coach_api(request):
     """API endpoint for AI Coach powered by Gemini"""
-    is_verified = False
-    if request.user.is_authenticated:
-        if hasattr(request.user, 'is_verified'):
-            if callable(request.user.is_verified):
-                is_verified = request.user.is_verified()
-            else:
-                is_verified = request.user.is_verified
-                
-    if not is_verified:
-        return JsonResponse({'error': 'Not authenticated or verified'}, status=401)
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
     
     try:
         data = json.loads(request.body)
@@ -493,8 +489,19 @@ def ai_coach_api(request):
         recent_logs = ConsumptionLog.objects.filter(user_profile=profile).order_by('-date', '-created_at')[:10]
         
         # Prepare context for Gemini
-        context = f"User: {profile.name}, Age: {profile.age}, Gender: {profile.gender}, " \
-                  f"Height: {profile.height}cm, Weight: {profile.weight}kg, Target: {profile.target_weight}kg. "
+        context = f"User: {profile.name}, Age: {profile.age}, Gender: {profile.gender}. "
+
+        if profile.food_allergies:
+            context += f"Allergies: {profile.food_allergies}. "
+        if profile.medical_conditions:
+            context += f"Medical Conditions: {profile.medical_conditions}. "
+        if profile.diet_restrictions:
+            context += f"Diet Restrictions: {profile.diet_restrictions}. "
+
+        if profile.is_pro:
+            context += f"Pro Tier unlocked - Weight: {profile.weight}kg, Target: {profile.target_weight}kg. You may provide highly personalized advice based on these body metrics."
+        else:
+            context += f"Free Tier - Do not provide specific caloric or weight loss/gain advice, provide generic healthy responses."
         
         if recent_logs:
             context += "Recent meals: "
@@ -655,9 +662,13 @@ def process_payment_api(request):
         
         # Update user profile subscription
         profile.subscription_status = 'Pro'
-        # Set expiry to 30 days from now
+        # Set expiry to 30 days from now (or extend if already active)
         from datetime import date, timedelta
-        profile.subscription_expires = date.today() + timedelta(days=30)
+        current_expiry = profile.subscription_expires
+        if current_expiry and current_expiry > date.today():
+            profile.subscription_expires = current_expiry + timedelta(days=30)
+        else:
+            profile.subscription_expires = date.today() + timedelta(days=30)
         profile.save()
         
         return JsonResponse({
@@ -669,50 +680,60 @@ def process_payment_api(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
-@csrf_exempt
-def resend_otp_api(request):
-    """
-    API endpoint to resend OTP code during Login or Setup.
-    Works by finding the user in the session or current request.
-    """
-    user = None
-    
-    # 1. If authenticated, they are in the Setup phase
-    if request.user.is_authenticated:
-        user = request.user
-    else:
-        # 2. Try to find user from two_factor login session
-        try:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            
-            # Check for the key used by two_factor.views.core.LoginView
-            storage_data = request.session.get('wizard_login_view', {})
-            # The user is often stored in the 'extra_data' or similar by the wizard
-            # However, two_factor handles this by storing the user id.
-            # Let's check a few common places
-            user_id = storage_data.get('user_id')
-            if not user_id:
-                # Some versions/configs use different keys
-                user_id = request.session.get('two_factor_auth_user_id')
-                
-            if user_id:
-                user = User.objects.get(pk=user_id)
-        except Exception:
-            pass
 
-    if not user:
-        return JsonResponse({'success': False, 'error': 'Session expired or not found. Please try logging in again.'}, status=400)
-
-    from django_otp.plugins.otp_email.models import EmailDevice
-    from django_otp import devices_for_user
+@login_required
+def download_invoice_api(request, transaction_id):
+    """Generates an automated PDF invoice for a given transaction"""
+    redirect_res = verified_user_redirect(request)
+    if redirect_res:
+        return redirect_res
+        
+    profile = request.user.profile
+    try:
+        txn = Transaction.objects.get(transaction_id=transaction_id, user_profile=profile)
+    except Transaction.DoesNotExist:
+        return HttpResponse("Invoice not found", status=404)
+        
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from io import BytesIO
     
-    devices = [d for d in devices_for_user(user) if isinstance(d, EmailDevice)]
-    if not devices:
-        return JsonResponse({'success': False, 'error': 'No email device found for this account.'}, status=404)
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
     
-    # Trigger the challenge
-    device = devices[0]
-    device.generate_challenge()
+    p.setFont("Helvetica-Bold", 24)
+    p.drawString(50, 750, "NutriDiet Subscription Invoice")
     
-    return JsonResponse({'success': True, 'message': 'A new verification code has been sent to your email.'})
+    p.setFont("Helvetica", 14)
+    p.drawString(50, 700, f"Invoice #: {txn.transaction_id}")
+    p.drawString(50, 680, f"Date: {txn.created_at.strftime('%B %d, %Y')}")
+    p.drawString(50, 660, f"Billed To: {profile.name}")
+    p.drawString(50, 640, f"Email: {request.user.email}")
+    
+    p.line(50, 620, 550, 620)
+    
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(50, 590, "Description")
+    p.drawString(450, 590, "Amount")
+    
+    p.setFont("Helvetica", 14)
+    p.drawString(50, 560, f"{txn.plan_name} Plan Subscription")
+    p.drawString(450, 560, f"${txn.amount}")
+    
+    p.line(50, 540, 550, 540)
+    
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(350, 510, "Total Paid:")
+    p.drawString(450, 510, f"${txn.amount}")
+    
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 480, f"Payment Method: {txn.payment_method}")
+    p.drawString(50, 465, "Thank you for subscribing to NutriDiet Pro!")
+    
+    p.showPage()
+    p.save()
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Invoice_{txn.transaction_id}.pdf"'
+    return response

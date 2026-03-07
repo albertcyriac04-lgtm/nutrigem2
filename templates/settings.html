@@ -103,6 +103,45 @@
                 </div>
             </div>
 
+            <!-- Advanced Profile Fields -->
+            <div class="pt-4 border-t border-slate-100">
+                <h3 class="text-sm font-bold text-slate-800 mb-4">Health & Dietary Specifics</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Food
+                            Allergies</label>
+                        <input type="text" name="food_allergies" value="{{ profile.food_allergies }}"
+                            placeholder="e.g., Peanuts, Dairy, Shellfish"
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        <p class="text-[10px] text-slate-400 mt-1">Comma-separated list</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Medical
+                            Conditions</label>
+                        <input type="text" name="medical_conditions" value="{{ profile.medical_conditions }}"
+                            placeholder="e.g., Diabetes, Hypertension"
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        <p class="text-[10px] text-slate-400 mt-1">Comma-separated list</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Diet
+                            Restrictions</label>
+                        <input type="text" name="diet_restrictions" value="{{ profile.diet_restrictions }}"
+                            placeholder="e.g., Keto, Halal, Gluten-Free"
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        <p class="text-[10px] text-slate-400 mt-1">Comma-separated list</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Profile
+                            Image URL</label>
+                        <input type="url" name="profile_image_url" value="{{ profile.profile_image_url|default:'' }}"
+                            placeholder="https://..."
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        <p class="text-[10px] text-slate-400 mt-1">Direct link to an image to use as your avatar</p>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-200">
                 Save Profile Changes
@@ -173,11 +212,41 @@
                 <div>
                     <h4 class="text-2xl font-black text-slate-800">{{ profile.subscription_status }} Plan</h4>
                     {% if profile.is_pro %}
-                    <p class="text-sm text-emerald-600 font-bold mb-4">Express Status Active</p>
+                    <p class="text-sm text-emerald-600 font-bold mb-2">Pro Status Active</p>
+                    <p class="text-xs text-slate-500 mb-4" id="subscription-countdown">Valid until: {{
+                        profile.subscription_expires|date:"M d, Y" }}</p>
                     <div class="flex flex-col items-center">
                         <span
-                            class="px-6 py-2 bg-slate-50 text-slate-400 rounded-full text-xs font-black uppercase inline-block">Active
-                            Subscription</span>
+                            class="px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full text-xs font-black uppercase inline-block border border-emerald-100 shadow-sm"
+                            id="days-left-badge">
+                            Active Subscription
+                        </span>
+
+                        <script>
+                            // Live Date Countdown Logic
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const expiryDateStr = "{{ profile.subscription_expires|date:'Y-m-d' }}";
+                                if (expiryDateStr && expiryDateStr !== "None") {
+                                    const expiryDate = new Date(expiryDateStr);
+                                    const today = new Date();
+
+                                    // Calculate time difference
+                                    const timeDiff = expiryDate.getTime() - today.getTime();
+                                    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+                                    const badge = document.getElementById('days-left-badge');
+                                    if (daysDiff > 0) {
+                                        badge.innerHTML = `<i class="fa-regular fa-clock mr-1"></i> ${daysDiff} Days Left`;
+                                        if (daysDiff <= 3) {
+                                            badge.className = "px-6 py-2 bg-red-50 text-red-600 rounded-full text-xs font-black uppercase inline-block border border-red-100 shadow-sm";
+                                        }
+                                    } else {
+                                        badge.innerHTML = "Expired";
+                                        badge.className = "px-6 py-2 bg-red-50 text-red-600 rounded-full text-xs font-black uppercase inline-block border border-red-100 shadow-sm";
+                                    }
+                                }
+                            });
+                        </script>
                         <a href="{% url 'billing' %}"
                             class="mt-4 text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                             <i class="fas fa-file-invoice-dollar"></i>
@@ -203,40 +272,8 @@
         </div>
     </div>
 
-    <!-- Passkeys Management -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-6 border-b border-slate-50 flex items-center justify-between">
-            <div>
-                <h3 class="text-xl font-bold text-slate-800">Passkeys</h3>
-                <p class="text-xs text-slate-500">Enable faster, more secure login using your device's biometrics or
-                    password.</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <i class="fas fa-fingerprint text-lg"></i>
-            </div>
-        </div>
-        <div class="p-8">
-            <div class="flex items-center gap-4 p-4 bg-purple-50 rounded-2xl border border-purple-100 mb-6">
-                <div class="text-purple-600">
-                    <i class="fas fa-info-circle text-xl"></i>
-                </div>
-                <p class="text-sm text-purple-800">
-                    Passkeys allow you to log in securely without entering a password or waiting for email codes.
-                    They use your computer or phone's built-in security.
-                </p>
-            </div>
 
-            <a href="/mfa/fido2/register/"
-                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2">
-                <i class="fas fa-plus"></i>
-                Register New Passkey
-            </a>
 
-            <p class="mt-4 text-[10px] text-slate-400 text-center">
-                Supported on Chrome, Edge, Safari, and other modern browsers with Windows Hello, Face ID, or Touch ID.
-            </p>
-        </div>
-    </div>
 </div>
 <!-- Export Reports Section -->
 <div class="bg-slate-900 rounded-3xl shadow-xl p-8 text-white relative overflow-hidden">
@@ -281,6 +318,5 @@
     </div>
     <!-- Decorative blob -->
     <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl"></div>
-</div>
 </div>
 {% endblock %}

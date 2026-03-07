@@ -43,6 +43,12 @@ class UserProfile(models.Model):
     subscription_status = models.CharField(max_length=20, default='Free', choices=[('Free', 'Free'), ('Pro', 'Pro')])
     subscription_expires = models.DateField(null=True, blank=True)
     
+    # Advanced Profile settings
+    food_allergies = models.TextField(blank=True, help_text="Comma-separated list (e.g., Peanuts, Dairy, Shellfish)")
+    medical_conditions = models.TextField(blank=True, help_text="Comma-separated list (e.g., Diabetes, Hypertension)")
+    diet_restrictions = models.TextField(blank=True, help_text="Comma-separated list (e.g., Gluten-Free, Keto, Halal)")
+    profile_image_url = models.URLField(max_length=500, blank=True, null=True, help_text="URL to user's profile image")
+    
     class Meta:
         db_table = 'user_profiles'
         ordering = ['-created_at']

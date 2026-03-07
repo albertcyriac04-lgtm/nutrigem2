@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="p-8">
+    <h1>Test Billing</h1>
+    {% for plan in plans %}
+    <p>{{ plan.name }}</p>
+    {% endfor %}
+</div>
+{% endblock %}

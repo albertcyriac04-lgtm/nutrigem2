@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables with absolute path
+import sys
 env_path = BASE_DIR / '.env'
+sys.path.insert(0, str(BASE_DIR / 'apps'))
 load_dotenv(dotenv_path=env_path)
 
 # Diagnostic Logging
@@ -47,14 +49,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'api',
-    # MFA
-    'django_otp',
-    'django_otp.plugins.otp_static',
-    'django_otp.plugins.otp_totp',
-    'django_otp.plugins.otp_email',
-    'two_factor',
-    'formtools',
-    'mfa',
+    'user_app',
+    'admin_app',
 ]
 
 MIDDLEWARE = [
@@ -64,7 +60,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django_otp.middleware.OTPMiddleware',
+
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -164,8 +160,7 @@ REST_FRAMEWORK = {
 }
 
 # Authentication settings
-LOGIN_URL = 'two_factor:login'
-LOGIN_REDIRECT_URL = 'index'
+LOGIN_URL = 'login'
 
 # Email settings (SMTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -176,20 +171,7 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = f'NutriDiet <{os.getenv("EMAIL_HOST_USER")}>'
 
-# MFA settings
-TWO_FACTOR_TOTP_ENABLED = False
-TWO_FACTOR_EMAIL_TOKEN_ENABLED = True
-TWO_FACTOR_PHONE_METHODS = []  # Disable phone methods
 
-# MFA2 Settings (Passkeys)
-MFA_SETTINGS = {
-    'RELYING_PARTY': {
-        'id': '127.0.0.1', # For development
-        'name': 'NutriGem'
-    },
-    'METHODS': ['FIDO2'], # Only Passkeys
-    'REDIRECT_HOME': 'index',
-}
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [

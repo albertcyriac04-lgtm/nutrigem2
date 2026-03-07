@@ -1,28 +1,25 @@
-"""
-URL configuration for nutrigem_backend project.
-"""
 from django.contrib import admin
 from django.urls import path, include, reverse_lazy
 from django.conf import settings
 from django.contrib.auth import views as auth_views
 from django.conf.urls.static import static
-from api.views_frontend import (
+from admin_app.admin_views import nutridiet_admin
+from user_app.views import (
     landing, index, login_view, logs_view, coach_view, settings_view,
     add_consumption_log, add_weight_record, logout_view, register_view,
     ai_coach_api, get_diet_plan, export_report_api, add_water_api,
     log_meal_api, remove_meal_api, billing_view, process_payment_api,
-    resend_otp_api
+    download_invoice_api
 )
-from two_factor.urls import urlpatterns as tf_urls
+
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin/', nutridiet_admin.urls),
     path('api/', include('api.urls')),
     path('', landing, name='landing'),
     path('register/', register_view, name='register'),
     path('login/', login_view, name='login'),
-    path('', include(tf_urls)),  # This includes the default two-factor auth views
-    path('mfa/', include('mfa.urls')),  # Passkey support
+
     path('dashboard/', index, name='index'),
     path('logs/', logs_view, name='logs'),
     path('coach/', coach_view, name='coach'),
@@ -37,7 +34,8 @@ urlpatterns = [
     path('diet/', get_diet_plan, name='diet_plan'),
     path('billing/', billing_view, name='billing'),
     path('api/process-payment/', process_payment_api, name='process_payment'),
-    path('api/resend-otp/', resend_otp_api, name='resend_otp'),
+    path('api/download-invoice/<str:transaction_id>/', download_invoice_api, name='download_invoice'),
+
     path('export/report/', export_report_api, name='export_report'),
     
     # Password Reset

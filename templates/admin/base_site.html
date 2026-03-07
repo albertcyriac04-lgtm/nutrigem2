@@ -1,0 +1,413 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    /* Override Django admin styles */
+    body {
+        font-family: 'Inter', sans-serif !important;
+        background: #f1f5f9 !important;
+        margin: 0 !important;
+    }
+
+    #header {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        padding: 16px 24px !important;
+        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3) !important;
+        border-bottom: none !important;
+    }
+
+    #header h1,
+    #header #site-name a {
+        color: white !important;
+        font-weight: 800 !important;
+        font-size: 1.25rem !important;
+        letter-spacing: -0.025em !important;
+    }
+
+    #user-tools {
+        font-size: 0.875rem !important;
+        font-weight: 500 !important;
+    }
+
+    #user-tools a {
+        color: rgba(255, 255, 255, 0.85) !important;
+        text-decoration: none !important;
+        padding: 6px 14px !important;
+        border-radius: 10px !important;
+        transition: all 0.2s !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        margin-left: 4px !important;
+    }
+
+    #user-tools a:hover {
+        background: rgba(255, 255, 255, 0.25) !important;
+        color: white !important;
+    }
+
+    /* Breadcrumbs */
+    div.breadcrumbs {
+        background: white !important;
+        padding: 12px 24px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        color: #64748b !important;
+        font-size: 0.85rem !important;
+    }
+
+    div.breadcrumbs a {
+        color: #2563eb !important;
+        text-decoration: none !important;
+        font-weight: 500 !important;
+    }
+
+    /* Content area */
+    #content {
+        padding: 24px !important;
+    }
+
+    #content h1 {
+        font-weight: 800 !important;
+        font-size: 1.75rem !important;
+        color: #1e293b !important;
+        margin-bottom: 24px !important;
+    }
+
+    /* Module headers (API, Authentication etc) */
+    .module h2,
+    .module caption {
+        background: #1e293b !important;
+        color: white !important;
+        padding: 12px 20px !important;
+        font-weight: 700 !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        border-radius: 14px 14px 0 0 !important;
+        border: none !important;
+    }
+
+    .module {
+        background: white !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 14px !important;
+        overflow: hidden !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* Table styling */
+    .module table {
+        border-collapse: collapse !important;
+    }
+
+    .module table th {
+        background: #f8fafc !important;
+        color: #475569 !important;
+        font-weight: 700 !important;
+        font-size: 0.7rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+        padding: 12px 16px !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+    }
+
+    .module table td {
+        padding: 12px 16px !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        color: #334155 !important;
+        font-size: 0.875rem !important;
+    }
+
+    .module table tr:hover td {
+        background: #f8fafc !important;
+    }
+
+    .module table td a {
+        color: #2563eb !important;
+        font-weight: 600 !important;
+        text-decoration: none !important;
+    }
+
+    .module table td a:hover {
+        color: #1d4ed8 !important;
+        text-decoration: underline !important;
+    }
+
+    /* Add/Change links */
+    .addlink,
+    .changelink,
+    .viewlink {
+        color: #2563eb !important;
+        font-weight: 600 !important;
+        text-decoration: none !important;
+        font-size: 0.8rem !important;
+        padding: 4px 10px !important;
+        border-radius: 8px !important;
+        transition: all 0.2s !important;
+    }
+
+    .addlink:hover,
+    .changelink:hover,
+    .viewlink:hover {
+        background: #eff6ff !important;
+    }
+
+    /* Buttons */
+    input[type="submit"],
+    .submit-row input,
+    button[type="submit"],
+    .button,
+    a.button {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 10px 24px !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        font-size: 0.875rem !important;
+        cursor: pointer !important;
+        transition: all 0.2s !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+    }
+
+    input[type="submit"]:hover,
+    .submit-row input:hover,
+    button[type="submit"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35) !important;
+    }
+
+    .submit-row {
+        background: #f8fafc !important;
+        border-top: 1px solid #e2e8f0 !important;
+        padding: 16px 20px !important;
+        border-radius: 0 0 14px 14px !important;
+    }
+
+    .deletelink,
+    input.default[type="submit"].deletelink-box {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25) !important;
+    }
+
+    /* Form fields */
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="url"],
+    input[type="number"],
+    input[type="date"],
+    textarea,
+    select {
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        padding: 10px 14px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.875rem !important;
+        transition: all 0.2s !important;
+        background: #f8fafc !important;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    textarea:focus,
+    select:focus {
+        outline: none !important;
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+        background: white !important;
+    }
+
+    /* Labels */
+    label {
+        font-weight: 600 !important;
+        color: #334155 !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Recent actions */
+    #recent-actions-module {
+        background: white !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 14px !important;
+        overflow: hidden !important;
+    }
+
+    #recent-actions-module h2 {
+        background: #1e293b !important;
+        color: white !important;
+        padding: 12px 20px !important;
+        font-weight: 700 !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+    }
+
+    #recent-actions-module .actionlist li {
+        padding: 10px 16px !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Pagination */
+    .paginator {
+        padding: 12px 16px !important;
+        background: #f8fafc !important;
+        border-top: 1px solid #e2e8f0 !important;
+        border-radius: 0 0 14px 14px !important;
+    }
+
+    /* Error list, help text */
+    .errorlist li {
+        color: #ef4444 !important;
+        font-size: 0.8rem !important;
+    }
+
+    .help {
+        color: #94a3b8 !important;
+        font-size: 0.75rem !important;
+    }
+
+    /* Sidebar filters */
+    #changelist-filter {
+        background: white !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 14px !important;
+        padding: 16px !important;
+    }
+
+    #changelist-filter h2 {
+        background: transparent !important;
+        color: #1e293b !important;
+        font-size: 0.85rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+        padding: 0 0 12px 0 !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+    }
+
+    #changelist-filter h3 {
+        color: #475569 !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
+        margin: 12px 0 4px !important;
+    }
+
+    #changelist-filter li a {
+        color: #64748b !important;
+        font-size: 0.8rem !important;
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
+        display: block !important;
+    }
+
+    #changelist-filter li a:hover,
+    #changelist-filter li a.selected {
+        background: #eff6ff !important;
+        color: #2563eb !important;
+        font-weight: 600 !important;
+    }
+
+    /* Search bar */
+    #changelist #toolbar {
+        background: transparent !important;
+        padding: 0 0 16px 0 !important;
+        border: none !important;
+    }
+
+    #searchbar {
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 10px 16px !important;
+        font-size: 0.875rem !important;
+        width: 300px !important;
+        background: white !important;
+    }
+
+    /* Object tools (Add button etc) */
+    .object-tools li a {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        border-radius: 10px !important;
+        padding: 8px 16px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2) !important;
+    }
+
+    /* Calendar and date widgets */
+    .calendarbox,
+    .clockbox {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+    }
+
+    /* Inline groups */
+    .inline-group h2 {
+        background: #f1f5f9 !important;
+        color: #1e293b !important;
+    }
+
+    /* Dashboard layout fix */
+    #content-main {
+        max-width: 100% !important;
+    }
+
+    /* Footer */
+    #footer {
+        display: none !important;
+    }
+
+    /* Change list results */
+    #result_list {
+        border-radius: 14px !important;
+        overflow: hidden !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    #result_list thead th {
+        background: #f8fafc !important;
+    }
+
+    /* Checkbox styling */
+    input[type="checkbox"] {
+        accent-color: #2563eb !important;
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    /* Admin login page override */
+    body.login #container {
+        background: #f1f5f9 !important;
+    }
+
+    body.login #header {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block branding %}
+<div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <div
+            style="background: rgba(255,255,255,0.15); width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-gem" style="color: white; font-size: 1rem;"></i>
+        </div>
+        <h1 id="site-name"><a href="{% url 'admin:index' %}">NutriDiet Admin</a></h1>
+    </div>
+    <div
+        style="color: white; font-size: 0.85rem; font-weight: 600; background: rgba(255,255,255,0.1); padding: 6px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+        <i class="fas fa-user-circle" style="margin-right: 6px; opacity: 0.8;"></i>
+        Welcome, {{ user.profile.name|default:user.username }}
+    </div>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

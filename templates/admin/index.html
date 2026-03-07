@@ -1,0 +1,275 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Analytics Dashboard - NutriDiet Admin{% endblock %}
+
+{% block content %}
+<style>
+    /* Hide default admin content styling conflicts */
+    #content h1 {
+        display: none !important;
+    }
+</style>
+
+<div style="font-family: 'Inter', sans-serif; max-width: 1200px; margin: 0 auto;">
+    <!-- Dashboard Header -->
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 1.75rem; font-weight: 800; color: #1e293b; margin: 0 0 4px 0; display: block !important;">
+            <i class="fas fa-chart-line" style="color: #2563eb; margin-right: 8px;"></i>Analytics Dashboard
+        </h1>
+        <p style="color: #64748b; font-size: 0.875rem; margin: 0;">Platform overview and key metrics</p>
+    </div>
+
+    <!-- Stats Cards Row -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
+        <!-- Total Users -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span
+                    style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;">Total
+                    Users</span>
+                <div
+                    style="width: 36px; height: 36px; border-radius: 10px; background: #eff6ff; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-users" style="color: #2563eb; font-size: 0.875rem;"></i>
+                </div>
+            </div>
+            <p style="font-size: 2rem; font-weight: 900; color: #1e293b; margin: 0; line-height: 1;">{{
+                stats.total_users }}</p>
+            <p style="font-size: 0.75rem; color: #94a3b8; margin: 6px 0 0;">
+                <span style="color: #22c55e; font-weight: 600;">+{{ stats.new_users_week }}</span> this week
+            </p>
+        </div>
+
+        <!-- Pro Subscribers -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span
+                    style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;">Pro
+                    Members</span>
+                <div
+                    style="width: 36px; height: 36px; border-radius: 10px; background: #f0fdf4; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-crown" style="color: #16a34a; font-size: 0.875rem;"></i>
+                </div>
+            </div>
+            <p style="font-size: 2rem; font-weight: 900; color: #1e293b; margin: 0; line-height: 1;">{{ stats.pro_users
+                }}</p>
+            <p style="font-size: 0.75rem; color: #94a3b8; margin: 6px 0 0;">
+                {{ stats.pro_percentage }}% conversion rate
+            </p>
+        </div>
+
+        <!-- Total Revenue -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span
+                    style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;">Revenue</span>
+                <div
+                    style="width: 36px; height: 36px; border-radius: 10px; background: #fef3c7; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-dollar-sign" style="color: #d97706; font-size: 0.875rem;"></i>
+                </div>
+            </div>
+            <p style="font-size: 2rem; font-weight: 900; color: #1e293b; margin: 0; line-height: 1;">${{
+                stats.total_revenue }}</p>
+            <p style="font-size: 0.75rem; color: #94a3b8; margin: 6px 0 0;">
+                {{ stats.total_transactions }} transactions
+            </p>
+        </div>
+
+        <!-- Food Items -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span
+                    style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;">Food
+                    Items</span>
+                <div
+                    style="width: 36px; height: 36px; border-radius: 10px; background: #fce7f3; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-utensils" style="color: #db2777; font-size: 0.875rem;"></i>
+                </div>
+            </div>
+            <p style="font-size: 2rem; font-weight: 900; color: #1e293b; margin: 0; line-height: 1;">{{
+                stats.total_food_items }}</p>
+            <p style="font-size: 0.75rem; color: #94a3b8; margin: 6px 0 0;">
+                {{ stats.total_consumption_logs }} logs recorded
+            </p>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 28px;">
+        <!-- User Registrations Chart -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <h3
+                style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 0.04em;">
+                <i class="fas fa-chart-area" style="color: #2563eb; margin-right: 6px;"></i>User Registrations (Last 7
+                Days)
+            </h3>
+            <canvas id="registrationChart" height="200"></canvas>
+        </div>
+
+        <!-- Meal Type Distribution -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <h3
+                style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 0.04em;">
+                <i class="fas fa-chart-pie" style="color: #8b5cf6; margin-right: 6px;"></i>Meal Distribution
+            </h3>
+            <canvas id="mealChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Second Row: Activity + Recent Users -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;">
+        <!-- Activity Stats -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <h3
+                style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 0.04em;">
+                <i class="fas fa-bolt" style="color: #f59e0b; margin-right: 6px;"></i>Platform Activity (Today)
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div style="background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="font-size: 1.5rem; font-weight: 900; color: #2563eb; margin: 0;">{{ stats.logs_today }}
+                    </p>
+                    <p
+                        style="font-size: 0.7rem; font-weight: 600; color: #64748b; margin: 4px 0 0; text-transform: uppercase;">
+                        Meals Logged</p>
+                </div>
+                <div style="background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="font-size: 1.5rem; font-weight: 900; color: #16a34a; margin: 0;">{{ stats.water_logs_today
+                        }}</p>
+                    <p
+                        style="font-size: 0.7rem; font-weight: 600; color: #64748b; margin: 4px 0 0; text-transform: uppercase;">
+                        Water Tracked</p>
+                </div>
+                <div style="background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="font-size: 1.5rem; font-weight: 900; color: #8b5cf6; margin: 0;">{{
+                        stats.weight_logs_today }}</p>
+                    <p
+                        style="font-size: 0.7rem; font-weight: 600; color: #64748b; margin: 4px 0 0; text-transform: uppercase;">
+                        Weight Logged</p>
+                </div>
+                <div style="background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="font-size: 1.5rem; font-weight: 900; color: #f59e0b; margin: 0;">{{ stats.diet_plans_today
+                        }}</p>
+                    <p
+                        style="font-size: 0.7rem; font-weight: 600; color: #64748b; margin: 4px 0 0; text-transform: uppercase;">
+                        Diet Plans</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Users -->
+        <div
+            style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <h3
+                style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 0.04em;">
+                <i class="fas fa-user-plus" style="color: #22c55e; margin-right: 6px;"></i>Recent Registrations
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                {% for user in recent_users %}
+                <div
+                    style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #f8fafc; border-radius: 10px;">
+                    <div
+                        style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center;">
+                        <span style="color: white; font-weight: 800; font-size: 0.8rem;">{{
+                            user.profile.name|default:user.username|make_list|first|upper }}</span>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="font-weight: 600; color: #1e293b; margin: 0; font-size: 0.85rem;">{{
+                            user.profile.name|default:user.username }}
+                        </p>
+                        <p style="color: #94a3b8; margin: 0; font-size: 0.7rem;">{{ user.email|default:"No email" }}</p>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 500;">{{ user.date_joined|timesince }}
+                        ago</span>
+                </div>
+                {% empty %}
+                <p style="color: #94a3b8; font-size: 0.85rem; text-align: center; padding: 20px;">No users yet</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+    // Registration chart
+    const regCtx = document.getElementById('registrationChart').getContext('2d');
+    new Chart(regCtx, {
+        type: 'line',
+        data: {
+            labels: {{ registration_labels| safe }},
+        datasets: [{
+            label: 'New Users',
+            data: {{ registration_data| safe }},
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#2563eb',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, font: { family: 'Inter', size: 11, weight: '500' }, color: '#94a3b8' },
+                grid: { color: '#f1f5f9' }
+            },
+            x: {
+                ticks: { font: { family: 'Inter', size: 11, weight: '500' }, color: '#94a3b8' },
+                grid: { display: false }
+            }
+        }
+    }
+    });
+
+    // Meal distribution chart
+    const mealCtx = document.getElementById('mealChart').getContext('2d');
+    new Chart(mealCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
+            datasets: [{
+                data: {{ meal_data| safe }
+    },
+        backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ec4899'],
+        borderWidth: 0,
+        hoverOffset: 8,
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { font: { family: 'Inter', size: 11, weight: '600' }, padding: 12, usePointStyle: true, pointStyleWidth: 8 }
+            }
+        }
+    }
+    });
+</script>
+
+<!-- Default admin app list below -->
+<div style="margin-top: 32px;">
+    <h2
+        style="font-size: 1rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px;">
+        <i class="fas fa-database" style="color: #64748b; margin-right: 8px;"></i>Database Management
+    </h2>
+    {% include "admin/app_list.html" %}
+</div>
+{% endblock %}
