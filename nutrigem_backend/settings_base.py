@@ -3,7 +3,6 @@ Base Django settings shared across all environments.
 """
 
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
 import os
 import sys
 
@@ -15,7 +14,7 @@ sys.path.insert(0, str(BASE_DIR / "apps"))
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-this-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-local-prototype-key")
 
 
 INSTALLED_APPS = [
@@ -64,68 +63,20 @@ TEMPLATES = [
 WSGI_APPLICATION = "nutrigem_backend.wsgi.application"
 ASGI_APPLICATION = "nutrigem_backend.asgi.application"
 
-
-def _database_config_from_url(database_url: str):
-    parsed = urlparse(database_url)
-    scheme = (parsed.scheme or "").split("+")[0].lower()
-
-    if scheme in ("postgres", "postgresql"):
-        engine = "django.db.backends.postgresql"
-        default_port = "5432"
-    elif scheme in ("mysql", "mysql2"):
-        engine = "django.db.backends.mysql"
-        default_port = "3306"
-    elif scheme == "sqlite":
-        engine = "django.db.backends.sqlite3"
-        default_port = ""
-    else:
-        raise ValueError(f"Unsupported DATABASE_URL scheme: {scheme}")
-
-    query = parse_qs(parsed.query)
-    options = {k: v[0] for k, v in query.items() if v}
-
-    if engine == "django.db.backends.postgresql" and "sslmode" not in options:
-        options["sslmode"] = "require"
-    if engine == "django.db.backends.mysql":
-        options.setdefault("charset", "utf8mb4")
-        options.setdefault("init_command", "SET sql_mode='STRICT_TRANS_TABLES'")
-
-    if engine == "django.db.backends.sqlite3":
-        db_name = parsed.path or "/db.sqlite3"
-    else:
-        db_name = (parsed.path or "").lstrip("/")
-
-    config = {
-        "ENGINE": engine,
-        "NAME": db_name,
-        "USER": unquote(parsed.username or ""),
-        "PASSWORD": unquote(parsed.password or ""),
-        "HOST": parsed.hostname or "",
-        "PORT": str(parsed.port or default_port),
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.getenv("DB_NAME", "nutrigem_db"),
+        "USER": os.getenv("DB_USER", "root"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "1234"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", "3306"),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     }
-    if options:
-        config["OPTIONS"] = options
-    return config
-
-
-database_url = os.getenv("DATABASE_URL")
-if database_url:
-    DATABASES = {"default": _database_config_from_url(database_url)}
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.mysql",
-            "NAME": os.getenv("DB_NAME", "nutrigem_db"),
-            "USER": os.getenv("DB_USER", "root"),
-            "PASSWORD": os.getenv("DB_PASSWORD", "1234"),
-            "HOST": os.getenv("DB_HOST", "localhost"),
-            "PORT": os.getenv("DB_PORT", "3306"),
-            "OPTIONS": {
-                "charset": "utf8mb4",
-                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            },
-        }
-    }
+}
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -171,7 +122,6 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False
 
-_csrf_trusted_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_trusted_origins.split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS = []
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

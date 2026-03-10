@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from admin_app.admin_views import nutridiet_admin
 from .models import UserProfile, FoodItem, ConsumptionLog, WeightRecord, WaterLog, DailyMealLog, SubscriptionPlan, Transaction
 
@@ -9,7 +10,35 @@ nutridiet_admin.register(User, UserAdmin)
 nutridiet_admin.register(Group, GroupAdmin)
 
 
+class UserProfileAdminForm(forms.ModelForm):
+    food_allergies = forms.CharField(required=False, help_text="Comma-separated list (e.g., Peanuts, Dairy, Shellfish)")
+    medical_conditions = forms.CharField(required=False, help_text="Comma-separated list (e.g., Diabetes, Hypertension)")
+    diet_restrictions = forms.CharField(required=False, help_text="Comma-separated list (e.g., Gluten-Free, Keto, Halal)")
+
+    class Meta:
+        model = UserProfile
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields['food_allergies'].initial = self.instance.food_allergies
+            self.fields['medical_conditions'].initial = self.instance.medical_conditions
+            self.fields['diet_restrictions'].initial = self.instance.diet_restrictions
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.food_allergies = self.cleaned_data.get('food_allergies', '')
+        instance.medical_conditions = self.cleaned_data.get('medical_conditions', '')
+        instance.diet_restrictions = self.cleaned_data.get('diet_restrictions', '')
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
 class UserProfileAdmin(admin.ModelAdmin):
+    form = UserProfileAdminForm
     list_display = [
         'display_user', 'name', 'age', 'gender', 'weight', 'target_weight',
         'dietary_preference', 'subscription_status', 'created_at'
@@ -119,12 +148,12 @@ nutridiet_admin.register(SubscriptionPlan, SubscriptionPlanAdmin)
 
 
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['transaction_id', 'user_profile', 'amount', 'payment_method', 'status', 'created_at']
+    list_display = ['transaction_id', 'user_profile', 'plan_name', 'amount', 'payment_method', 'status', 'created_at']
     list_filter = ['status', 'payment_method', 'created_at']
     search_fields = ['transaction_id', 'user_profile__name']
     readonly_fields = ['transaction_id', 'created_at']
-    autocomplete_fields = ['user_profile']
-    list_select_related = ['user_profile']
+    autocomplete_fields = ['user_profile', 'plan']
+    list_select_related = ['user_profile', 'plan']
     ordering = ['-created_at']
     list_per_page = 30
 

@@ -2,6 +2,32 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+class NamedLookupModel(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class FoodAllergy(NamedLookupModel):
+    class Meta(NamedLookupModel.Meta):
+        db_table = 'food_allergies'
+
+
+class MedicalCondition(NamedLookupModel):
+    class Meta(NamedLookupModel.Meta):
+        db_table = 'medical_conditions'
+
+
+class DietRestriction(NamedLookupModel):
+    class Meta(NamedLookupModel.Meta):
+        db_table = 'diet_restrictions'
+
+
 class UserProfile(models.Model):
     """
     Core model for storing user health metrics and preferences.
@@ -36,6 +62,9 @@ class UserProfile(models.Model):
     target_weight = models.FloatField(help_text="Target weight in kg")
     activity_multiplier = models.FloatField(choices=ACTIVITY_LEVEL_CHOICES, default=1.55)
     dietary_preference = models.CharField(max_length=20, choices=DIETARY_PREFERENCE_CHOICES, default='Non-Veg')
+    food_allergy_items = models.ManyToManyField(FoodAllergy, blank=True, related_name='user_profiles')
+    medical_condition_items = models.ManyToManyField(MedicalCondition, blank=True, related_name='user_profiles')
+    diet_restriction_items = models.ManyToManyField(DietRestriction, blank=True, related_name='user_profiles')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -43,10 +72,6 @@ class UserProfile(models.Model):
     subscription_status = models.CharField(max_length=20, default='Free', choices=[('Free', 'Free'), ('Pro', 'Pro')])
     subscription_expires = models.DateField(null=True, blank=True)
     
-    # Advanced Profile settings
-    food_allergies = models.TextField(blank=True, help_text="Comma-separated list (e.g., Peanuts, Dairy, Shellfish)")
-    medical_conditions = models.TextField(blank=True, help_text="Comma-separated list (e.g., Diabetes, Hypertension)")
-    diet_restrictions = models.TextField(blank=True, help_text="Comma-separated list (e.g., Gluten-Free, Keto, Halal)")
     profile_image_url = models.URLField(max_length=500, blank=True, null=True, help_text="URL to user's profile image")
     
     class Meta:
@@ -56,6 +81,75 @@ class UserProfile(models.Model):
     @property
     def is_pro(self):
         return self.subscription_status == 'Pro'
+
+    @staticmethod
+    def _parse_csv_names(value):
+        if not value:
+            return []
+        names = []
+        seen = set()
+        for raw_name in str(value).split(','):
+            name = raw_name.strip()
+            if name and name.lower() not in seen:
+                names.append(name)
+                seen.add(name.lower())
+        return names
+
+    def _get_related_names_csv(self, manager_name):
+        if not self.pk:
+            return ''
+        return ', '.join(getattr(self, manager_name).values_list('name', flat=True))
+
+    def _queue_related_names(self, attr_name, value):
+        pending = getattr(self, '_pending_related_names', {})
+        pending[attr_name] = self._parse_csv_names(value)
+        self._pending_related_names = pending
+
+    def _sync_pending_related_names(self):
+        if not self.pk:
+            return
+        pending = getattr(self, '_pending_related_names', None)
+        if not pending:
+            return
+
+        relation_map = {
+            'food_allergies': ('food_allergy_items', FoodAllergy),
+            'medical_conditions': ('medical_condition_items', MedicalCondition),
+            'diet_restrictions': ('diet_restriction_items', DietRestriction),
+        }
+        for attr_name, names in pending.items():
+            manager_name, model_class = relation_map[attr_name]
+            related_objects = [model_class.objects.get_or_create(name=name)[0] for name in names]
+            getattr(self, manager_name).set(related_objects)
+        self._pending_related_names = {}
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._sync_pending_related_names()
+
+    @property
+    def food_allergies(self):
+        return self._get_related_names_csv('food_allergy_items')
+
+    @food_allergies.setter
+    def food_allergies(self, value):
+        self._queue_related_names('food_allergies', value)
+
+    @property
+    def medical_conditions(self):
+        return self._get_related_names_csv('medical_condition_items')
+
+    @medical_conditions.setter
+    def medical_conditions(self, value):
+        self._queue_related_names('medical_conditions', value)
+
+    @property
+    def diet_restrictions(self):
+        return self._get_related_names_csv('diet_restriction_items')
+
+    @diet_restrictions.setter
+    def diet_restrictions(self, value):
+        self._queue_related_names('diet_restrictions', value)
 
     @property
     def water_requirement_glasses(self):
@@ -251,7 +345,7 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Pending')
-    plan_name = models.CharField(max_length=50, default="Pro Plan")
+    plan = models.ForeignKey('SubscriptionPlan', null=True, blank=True, on_delete=models.SET_NULL, related_name='transactions')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -260,3 +354,7 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"TXN {self.transaction_id} - {self.user_profile.name} ({self.amount})"
+
+    @property
+    def plan_name(self):
+        return self.plan.name if self.plan else "Plan"

@@ -657,7 +657,7 @@ def process_payment_api(request):
             amount=plan.amount,
             payment_method=payment_method,
             status='Success',
-            plan_name=plan.name
+            plan=plan
         )
         
         # Update user profile subscription

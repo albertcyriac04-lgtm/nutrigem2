@@ -68,6 +68,9 @@ class ConsumptionLogSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     consumption_logs = ConsumptionLogSerializer(many=True, read_only=True)
     weight_records = WeightRecordSerializer(many=True, read_only=True)
+    food_allergies = serializers.CharField(required=False, allow_blank=True)
+    medical_conditions = serializers.CharField(required=False, allow_blank=True)
+    diet_restrictions = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = UserProfile
@@ -81,9 +84,37 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def create(self, validated_data):
+        relation_fields = {
+            'food_allergies': validated_data.pop('food_allergies', ''),
+            'medical_conditions': validated_data.pop('medical_conditions', ''),
+            'diet_restrictions': validated_data.pop('diet_restrictions', ''),
+        }
+        instance = super().create(validated_data)
+        for field_name, value in relation_fields.items():
+            setattr(instance, field_name, value)
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        relation_fields = {}
+        for field_name in ('food_allergies', 'medical_conditions', 'diet_restrictions'):
+            if field_name in validated_data:
+                relation_fields[field_name] = validated_data.pop(field_name)
+        instance = super().update(instance, validated_data)
+        for field_name, value in relation_fields.items():
+            setattr(instance, field_name, value)
+        if relation_fields:
+            instance.save()
+        return instance
+
 
 class UserProfileListSerializer(serializers.ModelSerializer):
     """Simplified serializer for list views"""
+    food_allergies = serializers.CharField(read_only=True)
+    medical_conditions = serializers.CharField(read_only=True)
+    diet_restrictions = serializers.CharField(read_only=True)
+
     class Meta:
         model = UserProfile
         fields = [

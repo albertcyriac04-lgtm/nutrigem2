@@ -1,6 +1,6 @@
 # NutriDiet Django Backend
 
-Django REST API backend for NutriDiet nutrition tracking application with MySQL database.
+Django backend for the NutriDiet prototype with a local MySQL database.
 
 ## Setup Instructions
 
@@ -29,27 +29,21 @@ Django REST API backend for NutriDiet nutrition tracking application with MySQL 
 
 4. **Configure environment variables**:
     - Copy `.env.example` to `.env`
-    - Update the database credentials in `.env` (either `DATABASE_URL` or individual MySQL vars):
+    - Update the local database credentials in `.env`:
       ```
-      DJANGO_ENV=local
       DEBUG=True
-
-      DATABASE_URL=postgresql://postgres:YOUR_URL_ENCODED_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres
-
       DB_NAME=nutrigem_db
       DB_USER=root
       DB_PASSWORD=your_password
       DB_HOST=localhost
       DB_PORT=3306
       ```
-    - If your password contains special characters like `#`, `@`, `!`, encode it in `DATABASE_URL`.
 
 ### Settings Layout
 
 - `nutrigem_backend/settings_base.py` -> shared settings
-- `nutrigem_backend/settings_local.py` -> local development
-- `nutrigem_backend/settings_production.py` -> production
-- `nutrigem_backend/settings.py` -> selects by `DJANGO_ENV`
+- `nutrigem_backend/settings_local.py` -> local prototype overrides
+- `nutrigem_backend/settings.py` -> loads local settings
 
 5. **Run migrations**:
    ```bash
@@ -113,38 +107,4 @@ The API will be available at `http://localhost:8000/api/`
 
 Access the Django admin panel at `http://localhost:8000/admin/` to manage data through the web interface.
 
-## Database Backup (Supabase-style Cloud Backup)
-
-You can create local backups and upload them to Supabase Storage.
-
-### 1. Set environment variables
-
-Add these values to your `.env`:
-
-```env
-SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_STORAGE_BUCKET=db-backups
-```
-
-### 2. Create a local backup
-
-```bash
-python manage.py backup_database
-```
-
-This creates a compressed backup file in `backups/`.
-
-### 3. Upload backup to Supabase Storage
-
-```bash
-python manage.py backup_database --upload-supabase
-```
-
-Optional flags:
-
-```bash
-python manage.py backup_database --format json --upload-supabase --bucket db-backups --path-prefix nutridiet/prod
-python manage.py backup_database --no-compress
-```
 
