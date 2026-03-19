@@ -9,8 +9,13 @@ from user_app.views import (
     add_consumption_log, add_weight_record, logout_view, register_view,
     ai_coach_api, get_diet_plan, export_report_api, add_water_api,
     log_meal_api, remove_meal_api, billing_view, process_payment_api,
-    download_invoice_api
+    full_report_view,
+    download_invoice_api,
+    all_logs_view,
+    api_get_water_requirement,
+    api_logs_by_date
 )
+from api.views_frontend import diet_planner_page, diet_plan_api, log_advanced_meal_api
 
 
 urlpatterns = [
@@ -22,7 +27,9 @@ urlpatterns = [
 
     path('dashboard/', index, name='index'),
     path('logs/', logs_view, name='logs'),
+    path('logs/all/', all_logs_view, name='all_logs'),
     path('coach/', coach_view, name='coach'),
+    path('report/', full_report_view, name='full_report'),
     path('settings/', settings_view, name='settings'),
     path('logout/', logout_view, name='logout'),
     path('api/add-log/', add_consumption_log, name='add_log'),
@@ -35,6 +42,12 @@ urlpatterns = [
     path('billing/', billing_view, name='billing'),
     path('api/process-payment/', process_payment_api, name='process_payment'),
     path('api/download-invoice/<str:transaction_id>/', download_invoice_api, name='download_invoice'),
+    path('diet-planner/', diet_planner_page, name='diet_planner'),
+    path('api/diet-plan/', diet_plan_api, name='diet_plan_api'),
+    path('api/log-advanced-meal/', log_advanced_meal_api, name='log_advanced_meal'),
+    path('api/water-requirement/', api_get_water_requirement, name='api_get_water_requirement'),
+    path('api/logs-by-date/', api_logs_by_date, name='api_logs_by_date'),
+
 
     path('export/report/', export_report_api, name='export_report'),
     

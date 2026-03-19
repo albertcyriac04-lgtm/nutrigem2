@@ -1,0 +1,353 @@
+{% extends 'user_app/base.html' %}
+{% load static %}
+
+{% block title %}NutriDiet - AI Diet Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+    }
+    .gradient-text {
+        background: linear-gradient(to right, #10b981, #3b82f6);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    #loadingSpinner { display: none; }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+    <div class="text-center mb-10">
+        <h1 class="text-4xl font-extrabold mb-4 font-heading">
+            Advanced <span class="gradient-text">AI Diet</span> Planner
+        </h1>
+        <p class="text-slate-500 text-lg max-w-2xl mx-auto">
+            Powered by Google Gemini 2.0 Flash. Generate hyper-personalized, culturally aware diet plans instantly.
+        </p>
+    </div>
+
+    <!-- Form Section -->
+    <div id="formSection" class="glass-panel rounded-3xl p-8 mb-8">
+        <form id="dietForm" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Basic Info -->
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Name</label><input type="text" id="name" value="{{ profile.name|default:request.user.username }}" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Age</label><input type="number" id="age" value="{{ profile.age|default:25 }}" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Gender</label><select id="gender" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="male" {% if profile.gender == 'Male' %}selected{% endif %}>Male</option>
+                    <option value="female" {% if profile.gender == 'Female' %}selected{% endif %}>Female</option>
+                </select></div>
+                
+                <!-- Metrics -->
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Height (cm)</label><input type="number" id="height" value="{{ profile.height|default:170 }}" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Current Weight (kg)</label><input type="number" id="weight" step="0.1" value="{{ profile.weight|default:70 }}" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Target Weight (kg)</label><input type="number" id="target_weight" step="0.1" value="{{ profile.target_weight|default:65 }}" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+
+                <!-- Goals & Preferences -->
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Goal</label><select id="goal" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="lose_weight" {% if profile.weight > profile.target_weight %}selected{% endif %}>Lose Weight</option>
+                    <option value="maintain" {% if profile.weight == profile.target_weight %}selected{% endif %}>Maintain</option>
+                    <option value="gain_muscle" {% if profile.weight < profile.target_weight %}selected{% endif %}>Gain Muscle</option>
+                </select></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Diet Type</label><select id="diet_type" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="vegetarian" {% if profile.dietary_preference == 'Veg' %}selected{% endif %}>Vegetarian</option>
+                    <option value="non_vegetarian" {% if profile.dietary_preference == 'Non-Veg' %}selected{% endif %}>Non-Vegetarian</option>
+                    <option value="vegan" {% if profile.dietary_preference == 'Vegan' %}selected{% endif %}>Vegan</option>
+                    <option value="jain">Jain</option>
+                </select></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Activity Level</label><select id="activity" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <option value="sedentary" {% if profile.activity_multiplier < 1.3 %}selected{% endif %}>Sedentary</option>
+                    <option value="moderately_active" {% if profile.activity_multiplier >= 1.3 and profile.activity_multiplier < 1.7 %}selected{% endif %}>Moderately Active</option>
+                    <option value="highly_active" {% if profile.activity_multiplier >= 1.7 %}selected{% endif %}>Highly Active</option>
+                </select></div>
+
+                <!-- Advanced -->
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Meals per Day</label><input type="number" id="meals" value="4" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Cuisine</label><input type="text" id="cuisine" value="Indian" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Conditions (comma separated)</label><input type="text" id="diseases" value="{{ profile.medical_conditions }}" placeholder="e.g. Diabetes, Hypertension" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Allergies (comma separated)</label><input type="text" id="allergies" value="{{ profile.food_allergies }}" placeholder="e.g. nuts, dairy, egg" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                <div><label class="block text-sm font-semibold mb-2 text-slate-700">Diet Restrictions</label><input type="text" id="diet_restrictions" value="{{ profile.diet_restrictions }}" placeholder="e.g. Keto, Halal, Gluten-Free" class="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+            </div>
+            
+            <div class="pt-6">
+                <button type="submit" id="submitBtn" class="w-full md:w-auto px-10 py-4 bg-emerald-500 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-200 text-white font-bold rounded-2xl shadow-lg transition-all flex justify-center items-center gap-2">
+                    <i class="fas fa-magic"></i> Generate Plan
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingSpinner" class="text-center py-20 fade-in">
+        <div class="inline-block relative w-20 h-20">
+            <div class="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-emerald-500 rounded-full border-t-transparent animate-spin"></div>
+            <i class="fas fa-leaf absolute inset-0 flex items-center justify-center text-emerald-500 text-xl animate-pulse"></i>
+        </div>
+        <p class="mt-4 text-emerald-600 font-bold uppercase tracking-wider">AI is crafting your plan...</p>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="hidden space-y-8 fade-in">
+        <!-- Top Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div id="bmiCard" class="bg-white rounded-3xl p-6 shadow-sm border-2 border-transparent">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-slate-500 font-bold">BMI Assessment</h3>
+                    <i class="fas fa-weight-scale text-slate-400"></i>
+                </div>
+                <p id="bmiValue" class="text-5xl font-black mb-1"></p>
+                <p id="bmiCategory" class="text-sm font-black uppercase tracking-widest mb-4"></p>
+                <p id="bmiAdvice" class="text-sm text-slate-600 line-clamp-3"></p>
+            </div>
+            
+            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-6 shadow-xl text-white">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="font-bold text-indigo-100">Daily Calorie Target</h3>
+                    <i class="fas fa-fire-flame-curved text-indigo-200"></i>
+                </div>
+                <p id="calTarget" class="text-5xl font-black mb-1">...</p>
+                <p class="text-sm font-bold text-indigo-200 uppercase tracking-widest mb-4">Kcal / Day</p>
+                <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm text-xs border border-white/20" id="calRationale"></div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-slate-500 font-bold">Macronutrients</h3>
+                    <i class="fas fa-chart-pie text-slate-400"></i>
+                </div>
+                <div class="space-y-4" id="macrosContainer"></div>
+            </div>
+        </div>
+
+        <!-- Medical Alerts -->
+        <div id="medicalAlert" class="hidden bg-red-50 border-l-4 border-red-500 p-6 rounded-r-2xl">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-triangle-exclamation text-red-500 text-xl"></i>
+                <p class="text-red-800 font-bold" id="medicalAlertText"></p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Meal Plan -->
+            <div class="lg:col-span-2 space-y-6">
+                <h2 class="text-2xl font-bold font-heading">Your Custom Meal Plan</h2>
+                <div id="mealsContainer" class="space-y-4"></div>
+            </div>
+
+            <!-- Side insights -->
+            <div class="space-y-6">
+                <div class="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-droplet text-blue-500"></i> Hydration</h3>
+                    <p class="text-3xl font-black text-slate-800 mb-2" id="hydroTarget"></p>
+                    <p class="text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100" id="hydroTips"></p>
+                </div>
+                
+                <div class="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-star text-amber-500"></i> Superfoods</h3>
+                    <ul id="superfoodsList" class="space-y-3"></ul>
+                </div>
+
+                <div class="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-ban text-red-500"></i> Avoid Foods</h3>
+                    <ul id="avoidList" class="space-y-3"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('dietForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // UI State
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('loadingSpinner').style.display = 'block';
+    document.getElementById('resultsSection').classList.add('hidden');
+
+    // Gather data
+    const getValue = id => document.getElementById(id).value;
+    const splitArr = str => str ? str.split(',').map(s=>s.trim()) : [];
+
+    const payload = {
+        name: getValue('name'),
+        age: parseInt(getValue('age')),
+        gender: getValue('gender'),
+        height_cm: parseFloat(getValue('height')),
+        weight_kg: parseFloat(getValue('weight')),
+        target_weight: parseFloat(getValue('target_weight')),
+        goal: getValue('goal'),
+        diet_type: getValue('diet_type'),
+        activity_level: getValue('activity'),
+        meals_per_day: parseInt(getValue('meals')),
+        cuisine_pref: getValue('cuisine'),
+        diseases: splitArr(getValue('diseases')),
+        allergies: splitArr(getValue('allergies')),
+        diet_restrictions: splitArr(getValue('diet_restrictions'))
+    };
+
+    fetch('/api/diet-plan/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if(!res.success) throw new Error(res.error || "Unknown error");
+        renderResults(res);
+    })
+    .catch(err => {
+        alert("Failed to generate plan: " + err.message);
+    })
+    .finally(() => {
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('loadingSpinner').style.display = 'none';
+    });
+});
+
+function renderResults(res) {
+    const data = res.data;
+    
+    // BMI
+    const colorMap = {
+        'Blue': 'border-blue-500 text-blue-600',
+        'Green': 'border-emerald-500 text-emerald-600',
+        'Amber': 'border-amber-500 text-amber-600',
+        'Orange': 'border-orange-500 text-orange-600',
+        'Red': 'border-red-500 text-red-600',
+        'Dark Red': 'border-red-800 text-red-800'
+    };
+    const cClass = colorMap[res.bmi_info.color] || 'border-slate-500 text-slate-600';
+    document.getElementById('bmiCard').className = `bg-white rounded-3xl p-6 shadow-sm border-t-4 ${cClass.split(' ')[0]}`;
+    document.getElementById('bmiValue').innerText = res.bmi;
+    document.getElementById('bmiCategory').className = `text-sm font-black uppercase tracking-widest mb-4 ${cClass.split(' ')[1]}`;
+    document.getElementById('bmiCategory').innerText = res.bmi_info.category;
+    document.getElementById('bmiAdvice').innerText = data.bmi_assessment?.recommendation || data.bmi_assessment?.summary || '';
+
+    // Calories
+    document.getElementById('calTarget').innerText = data.calorie_target?.daily_kcal || '--';
+    document.getElementById('calRationale').innerText = data.calorie_target?.rationale || '';
+
+    // Macros
+    const macros = [
+        {l: 'Protein', v: data.calorie_target?.protein_g, c: 'bg-emerald-500'},
+        {l: 'Carbs', v: data.calorie_target?.carbs_g, c: 'bg-blue-500'},
+        {l: 'Fat', v: data.calorie_target?.fat_g, c: 'bg-amber-500'},
+        {l: 'Fiber', v: data.calorie_target?.fiber_g, c: 'bg-purple-500'}
+    ];
+    document.getElementById('macrosContainer').innerHTML = macros.map(m => `
+        <div>
+            <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                <span>${m.l}</span><span>${m.v}g</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="${m.c} h-1.5 rounded-full" style="width: 100%"></div></div>
+        </div>
+    `).join('');
+
+    // Medical Alert
+    if (data.medical_alert) {
+        document.getElementById('medicalAlertText').innerText = data.medical_alert;
+        document.getElementById('medicalAlert').classList.remove('hidden');
+    } else {
+        document.getElementById('medicalAlert').classList.add('hidden');
+    }
+
+    // Hydration
+    document.getElementById('hydroTarget').innerText = `${data.hydration?.target_litres || '--'} Litres`;
+    document.getElementById('hydroTips').innerText = data.hydration?.tips || '';
+
+    // Arrays
+    const makeList = (arr, titleKey, descKey, iconHTML) => (arr||[]).map(a => `
+        <li class="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div class="mt-0.5">${iconHTML}</div>
+            <div><p class="font-bold text-slate-800 text-sm">${a[titleKey]}</p><p class="text-xs text-slate-500">${a[descKey]}</p></div>
+        </li>
+    `).join('');
+
+    document.getElementById('superfoodsList').innerHTML = makeList(data.superfoods, 'food', 'benefit', '<i class="fas fa-check-circle text-emerald-500"></i>');
+    document.getElementById('avoidList').innerHTML = makeList(data.avoid_foods, 'food', 'reason', '<i class="fas fa-times-circle text-red-500"></i>');
+
+    // Meal Plan
+    document.getElementById('mealsContainer').innerHTML = (data.meal_plan||[]).map(meal => `
+        <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:border-emerald-200 transition-colors">
+            <div class="absolute right-0 top-0 bottom-0 w-2 bg-gradient-to-b from-emerald-400 to-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="flex flex-wrap justify-between items-start gap-4 mb-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-800">${meal.meal}</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-wider"><i class="far fa-clock mr-1"></i> ${meal.time_window}</p>
+                </div>
+                <div class="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-xl text-sm border border-emerald-100">
+                    ${meal.total_kcal} kcal
+                </div>
+            </div>
+            <ul class="space-y-2 mb-4">
+                ${(meal.foods||[]).map(f => `
+                    <li class="flex items-start gap-2 text-slate-600 text-sm font-medium">
+                        <i class="fas fa-utensils text-emerald-300 mt-1 text-[10px]"></i>
+                        <span>${f}</span>
+                    </li>
+                `).join('')}
+            </ul>
+            <button onclick="logAdvancedMeal('${meal.meal}', ${JSON.stringify(meal.foods).replace(/"/g, '&quot;')}, ${meal.total_kcal}, this)" class="w-full py-2 bg-slate-50 text-slate-600 hover:bg-emerald-600 hover:text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2">
+                <i class="fas fa-plus-circle"></i> Log this Meal
+            </button>
+        </div>
+    `).join('');
+
+    document.getElementById('resultsSection').classList.remove('hidden');
+    // Scroll to results cleanly
+    setTimeout(() => {
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+}
+
+function logAdvancedMeal(mealName, foods, calories, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging...';
+
+    fetch('/api/log-advanced-meal/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            meal: mealName,
+            foods: foods,
+            calories: calories
+        })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if(res.success) {
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> Logged Success';
+            btn.classList.remove('bg-slate-50', 'text-slate-600');
+            btn.classList.add('bg-emerald-100', 'text-emerald-700');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-plus-circle"></i> Log Again';
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            alert("Error: " + res.error);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    })
+    .catch(err => {
+        alert("Failed to log: " + err.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+</script>
+{% endblock %}

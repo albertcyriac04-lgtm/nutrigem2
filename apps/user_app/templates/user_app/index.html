@@ -1,4 +1,4 @@
-﻿{% extends 'user_app/base.html' %}
+{% extends 'user_app/base.html' %}
 {% load static %}
 
 {% block content %}
@@ -41,6 +41,7 @@
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+    <!-- Macros Card -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 class="text-xl font-semibold mb-6">Macro Targets</h2>
         <div class="space-y-4">
@@ -49,467 +50,115 @@
                     <span class="text-sm font-medium text-slate-600">Protein</span>
                     <span class="text-sm text-slate-400">{{ stats.protein_target }}g</span>
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-emerald-500 h-2 rounded-full" style="width: 60%"></div>
-                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width: 60%"></div></div>
             </div>
             <div>
                 <div class="flex justify-between mb-2">
                     <span class="text-sm font-medium text-slate-600">Carbs</span>
                     <span class="text-sm text-slate-400">{{ stats.carbs_target }}g</span>
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-green-500 h-2 rounded-full" style="width: 45%"></div>
-                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width: 45%"></div></div>
             </div>
             <div>
                 <div class="flex justify-between mb-2">
                     <span class="text-sm font-medium text-slate-600">Fats</span>
                     <span class="text-sm text-slate-400">{{ stats.fats_target }}g</span>
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-yellow-500 h-2 rounded-full" style="width: 30%"></div>
-                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2"><div class="bg-yellow-500 h-2 rounded-full" style="width: 30%"></div></div>
             </div>
         </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+    <!-- Enhanced Gemini Water Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 relative overflow-hidden group">
         <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-semibold">Water Intake</h2>
-            <div id="waterStatus"
-                class="{% if water_log.is_target_completed %}text-green-500{% else %}text-emerald-500{% endif %}">
-                <i
-                    class="fas {% if water_log.is_target_completed %}fa-circle-check{% else %}fa-droplet{% endif %} mr-1"></i>
-                <span class="text-xs font-bold uppercase tracking-wider">{% if water_log.is_target_completed %}Goal
-                    Met{% else %}Hydrating{% endif %}</span>
+            <h2 class="text-xl font-semibold flex items-center gap-2">
+                <i class="fas fa-droplet text-indigo-500"></i> Water Intake
+            </h2>
+            <div id="waterStatus" class="text-emerald-500">
+                <i class="fas fa-robot mr-1"></i>
+                <span class="text-[10px] font-black uppercase tracking-widest">Gemini Sync</span>
             </div>
         </div>
 
         <div class="flex items-center justify-around py-4">
-            <button onclick="updateWater('remove')"
-                class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors">
-                <i class="fas fa-minus"></i>
-            </button>
+            <button onclick="updateWater('remove')" class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors"><i class="fas fa-minus"></i></button>
             <div class="text-center">
                 <div class="relative inline-block">
-                    <i class="fas fa-glass-water text-5xl text-emerald-100"></i>
-                    <p class="absolute inset-0 flex items-center justify-center text-2xl font-bold text-emerald-600 mb-1"
-                        id="waterCounter">
-                        {{ water_log.amount_glasses }}
-                    </p>
+                    <i class="fas fa-glass-water text-5xl text-indigo-50"></i>
+                    <p class="absolute inset-0 flex items-center justify-center text-2xl font-black text-indigo-600 mb-1" id="dashWaterCounter">{{ water_log.amount_glasses }}</p>
                 </div>
-                <p class="text-xs text-slate-400 mt-2">Target: <span id="waterTarget">{{ water_log.target_glasses|default:8 }}</span> glasses</p>
-                <p class="text-[10px] text-slate-300">1 glass = 250 ml</p>
+                <p class="text-xs text-slate-400 mt-2 font-bold">Target: <span id="dashWaterTarget">--</span> glasses</p>
             </div>
-            <button onclick="updateWater('add')"
-                class="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95">
-                <i class="fas fa-plus"></i>
-            </button>
+            <button onclick="updateWater('add')" class="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-white hover:bg-indigo-600 shadow-lg shadow-indigo-100 transition-all active:scale-95"><i class="fas fa-plus"></i></button>
+        </div>
+
+        <!-- Gemini Rationale Small -->
+        <div class="mt-4 px-4 py-2 bg-indigo-50/50 rounded-xl border border-indigo-100">
+            <p id="dashWaterRationale" class="text-[9px] text-indigo-500 font-bold leading-relaxed italic text-center">Analysing body mass for recommendation...</p>
         </div>
 
         <div class="mt-6">
             <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div id="waterProgress" class="bg-emerald-500 h-2 rounded-full transition-all duration-500"
-                    style="width: {% widthratio water_log.amount_glasses water_log.target_glasses 100 %}%"></div>
-            </div>
-            <div class="flex justify-between mt-2">
-                <span class="text-[10px] text-slate-400">0ml</span>
-                <span class="text-[10px] text-slate-400 font-bold" id="waterTotal">{{ water_log.amount_ml }}ml</span>
-                <span class="text-[10px] text-slate-400">{{ water_log.target_ml }}ml</span>
+                <div id="dashWaterProgress" class="bg-indigo-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-    function updateWater(action) {
-        const formData = new FormData();
-        formData.append('action', action);
-
-        fetch("{% url 'add_water' %}", {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.amount_glasses !== undefined) {
-                    document.getElementById('waterCounter').innerText = data.amount_glasses;
-                    document.getElementById('waterTotal').innerText = (data.amount_glasses * 250) + "ml";
-
-                    const progress = (data.amount_glasses / data.target_glasses) * 100;
-                    document.getElementById('waterProgress').style.width = Math.min(progress, 100) + "%";
-
-                    const statusDiv = document.getElementById('waterStatus');
-                    if (data.is_completed) {
-                        statusDiv.classList.remove('text-emerald-500');
-                        statusDiv.classList.add('text-green-500');
-                        statusDiv.innerHTML = '<i class="fas fa-circle-check mr-1"></i><span class="text-xs font-bold uppercase tracking-wider">Goal Met</span>';
-                    } else {
-                        statusDiv.classList.remove('text-green-500');
-                        statusDiv.classList.add('text-emerald-500');
-                        statusDiv.innerHTML = '<i class="fas fa-droplet mr-1"></i><span class="text-xs font-bold uppercase tracking-wider">Hydrating</span>';
-                    }
-                }
-            });
-    }
-</script>
-
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div class="flex items-center justify-between mb-6">
             <h2 class="text-xl font-semibold">Weight Progress</h2>
-            <button onclick="document.getElementById('weightModal').classList.remove('hidden')"
-                class="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
-                <i class="fas fa-plus mr-1"></i> Record Weight
-            </button>
+            <button onclick="document.getElementById('weightModal').classList.remove('hidden')" class="text-emerald-600 hover:text-emerald-700 font-medium text-sm"><i class="fas fa-plus mr-1"></i> Record Weight</button>
         </div>
         <div class="h-48 flex items-end justify-between gap-2 mb-4">
             {% for record in weight_records|slice:":7" reversed %}
             <div class="flex-1 flex flex-col items-center">
-                <div class="w-full bg-emerald-100 rounded-t relative group"
-                    style="height: {{ record.weight|floatformat:0 }}%">
-                    <div
-                        class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                        {{ record.weight }}kg
-                    </div>
-                </div>
+                <span class="mb-2 text-[11px] font-bold text-slate-700">{{ record.weight }}kg</span>
+                <div class="w-full bg-emerald-100 rounded-t" style="height: {{ record.weight|floatformat:0 }}%"></div>
                 <span class="text-[10px] text-slate-500 mt-2">{{ record.date|date:"M d" }}</span>
             </div>
-            {% empty %}
-            <div class="flex-1 flex items-center justify-center h-full">
-                <p class="text-slate-400 italic text-sm">No weight records yet</p>
-            </div>
-            {% endfor %}
+            {% empty %}<p class="text-slate-400 italic text-sm">No weight records yet</p>{% endfor %}
         </div>
     </div>
 
-    <!-- Daily Meal Log -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-semibold text-slate-800">Daily Meal Log</h2>
-            <a href="{% url 'diet_plan' %}"
-                class="text-emerald-600 hover:text-emerald-700 font-bold text-xs uppercase tracking-wider">
-                <i class="fas fa-magic mr-1"></i> From Diet Plan
-            </a>
+    <!-- Indian Diet Shortcut -->
+    <div class="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg p-8 text-white flex flex-col justify-between">
+        <div>
+            <div class="flex items-center gap-3 mb-4"><i class="fas fa-utensils text-2xl"></i><h2 class="text-2xl font-bold">Indian Diet Plan</h2></div>
+            <p class="text-indigo-50 opacity-90 text-sm mb-6 leading-relaxed">Personalized meal plans calculated by Gemini specifically for your nutritional targets today.</p>
         </div>
-
-        <div class="space-y-3">
-            {% with logs=daily_meal_log %}
-            <div
-                class="flex items-center justify-between p-3 rounded-2xl border transition-all {% if logs.breakfast_content %}bg-emerald-50/50 border-emerald-100 shadow-sm{% else %}bg-slate-50/50 border-slate-100{% endif %}">
-                <div class="flex items-center gap-3">
-                    <div
-                        class="w-8 h-8 rounded-lg flex items-center justify-center {% if logs.breakfast_content %}bg-emerald-100 text-emerald-600{% else %}bg-slate-100 text-slate-400{% endif %}">
-                        <i class="fas fa-sun text-xs"></i>
-                    </div>
-                    <span class="text-sm font-bold text-slate-700">Breakfast</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="text-right">
-                        <p
-                            class="text-xs font-bold {% if logs.breakfast_content %}text-emerald-600{% else %}text-slate-400{% endif %}">
-                            {% if logs.breakfast_content %}{{ logs.breakfast_calories }} kcal{% else %}--{% endif %}
-                        </p>
-                    </div>
-                    {% if logs.breakfast_content %}
-                    <button onclick="removeMealDash('breakfast', this)"
-                        class="text-slate-300 hover:text-red-500 transition-colors p-1">
-                        <i class="fas fa-undo text-[10px]"></i>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div
-                class="flex items-center justify-between p-3 rounded-2xl border transition-all {% if logs.lunch_content %}bg-emerald-50/50 border-emerald-100 shadow-sm{% else %}bg-slate-50/50 border-slate-100{% endif %}">
-                <div class="flex items-center gap-3">
-                    <div
-                        class="w-8 h-8 rounded-lg flex items-center justify-center {% if logs.lunch_content %}bg-emerald-100 text-emerald-600{% else %}bg-slate-100 text-slate-400{% endif %}">
-                        <i class="fas fa-cloud-sun text-xs"></i>
-                    </div>
-                    <span class="text-sm font-bold text-slate-700">Lunch</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="text-right">
-                        <p
-                            class="text-xs font-bold {% if logs.lunch_content %}text-emerald-600{% else %}text-slate-400{% endif %}">
-                            {% if logs.lunch_content %}{{ logs.lunch_calories }} kcal{% else %}--{% endif %}
-                        </p>
-                    </div>
-                    {% if logs.lunch_content %}
-                    <button onclick="removeMealDash('lunch', this)"
-                        class="text-slate-300 hover:text-red-500 transition-colors p-1">
-                        <i class="fas fa-undo text-[10px]"></i>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div
-                class="flex items-center justify-between p-3 rounded-2xl border transition-all {% if logs.dinner_content %}bg-indigo-50/50 border-indigo-100 shadow-sm{% else %}bg-slate-50/50 border-slate-100{% endif %}">
-                <div class="flex items-center gap-3">
-                    <div
-                        class="w-8 h-8 rounded-lg flex items-center justify-center {% if logs.dinner_content %}bg-indigo-100 text-indigo-600{% else %}bg-slate-100 text-slate-400{% endif %}">
-                        <i class="fas fa-moon text-xs"></i>
-                    </div>
-                    <span class="text-sm font-bold text-slate-700">Dinner</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="text-right">
-                        <p
-                            class="text-xs font-bold {% if logs.dinner_content %}text-indigo-600{% else %}text-slate-400{% endif %}">
-                            {% if logs.dinner_content %}{{ logs.dinner_calories }} kcal{% else %}--{% endif %}
-                        </p>
-                    </div>
-                    {% if logs.dinner_content %}
-                    <button onclick="removeMealDash('dinner', this)"
-                        class="text-slate-300 hover:text-red-500 transition-colors p-1">
-                        <i class="fas fa-undo text-[10px]"></i>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-            {% endwith %}
-
-            <div class="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan Adherence</span>
-                <span class="text-xs font-bold text-slate-800">{{ daily_meal_log.total_calories_consumed|default:0|floatformat:0 }}
-                    kcal</span>
-            </div>
-        </div>
-
-        <script>
-            function removeMealDash(mealType, btn) {
-                if (!confirm('Clear this meal from your log?')) return;
-
-                const formData = new FormData();
-                formData.append('date', "{% now 'Y-m-d' %}");
-                formData.append('meal_type', mealType);
-
-                const row = btn.closest('.flex.items-center.justify-between');
-                row.style.opacity = '0.5';
-
-                fetch("{% url 'remove_meal' %}", {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    }
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload(); // Simplest way to update all calorie counts on dashboard
-                        } else {
-                            alert(data.error || 'Failed to remove meal');
-                            row.style.opacity = '1';
-                        }
-                    });
-            }
-        </script>
-    </div>
-</div>
-</div>
-
-<!-- Weight Entry Modal -->
-<div id="weightModal"
-    class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-slate-800">Record Today's Weight</h3>
-            <button onclick="document.getElementById('weightModal').classList.add('hidden')"
-                class="text-slate-400 hover:text-slate-600">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <form action="{% url 'add_weight' %}" method="post" class="space-y-4">
-            {% csrf_token %}
-            <div>
-                <label for="weight" class="block text-sm font-medium text-slate-600 mb-1">Weight (kg)</label>
-                <div class="relative">
-                    <input type="number" step="0.1" name="weight" id="weight" required value="{{ profile.weight }}"
-                        class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">kg</span>
-                </div>
-            </div>
-            <div>
-                <label for="date" class="block text-sm font-medium text-slate-600 mb-1">Date</label>
-                <input type="date" name="date" id="date" required value="{% now 'Y-m-d' %}"
-                    class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none">
-            </div>
-            <button type="submit"
-                class="w-full bg-emerald-500 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-200 transition-all transform hover:-translate-y-0.5 active:scale-95">
-                Save Record
-            </button>
-        </form>
+        <a href="{% url 'diet_planner' %}" class="w-full bg-white text-indigo-600 font-bold py-4 rounded-xl text-center hover:bg-slate-50 transition-all shadow-xl">View Today's Plan</a>
     </div>
 </div>
 
 <!-- ML Insights Section -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-    <div class="lg:col-span-2 bg-gradient-to-br from-indigo-600 to-emerald-600 rounded-3xl shadow-xl p-8 text-white">
+    <div class="lg:col-span-2 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl p-8 text-white">
         <div class="flex items-center justify-between mb-8">
-            <div>
-                <h2 class="text-2xl font-bold mb-1" id="predictive-insights-title">Predictive Health Insights</h2>
-                <p class="text-indigo-100 opacity-80 text-sm">Linear Regression analysis of your health trends</p>
-            </div>
-            <div class="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-                <i class="fas fa-brain text-2xl"></i>
-            </div>
+            <div><h2 class="text-2xl font-bold mb-1">Predictive Health Insights</h2><p class="text-slate-400 text-sm">Linear Regression analysis of your health trends</p></div>
+            <div class="bg-white/10 p-3 rounded-2xl"><i class="fas fa-brain text-2xl text-indigo-400"></i></div>
         </div>
-
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-6">
                 <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-200 mb-2">7-Day Weight Forecast
-                    </h3>
-                    <div class="flex items-baseline gap-2">
-                        {% if weight_prediction.predicted_weight %}
-                        <span class="text-5xl font-extrabold">{{ weight_prediction.predicted_weight }}</span>
-                        <span class="text-xl font-medium text-indigo-200">kg</span>
-                        {% else %}
-                        <span class="text-3xl font-bold">Awaiting Data</span>
-                        {% endif %}
-                    </div>
-                    <p class="text-sm text-indigo-100 mt-2">
-                        {% if weight_prediction.trend == 'Upward' %}
-                        <i class="fas fa-arrow-trend-up mr-2"></i>
-                        {% elif weight_prediction.trend == 'Downward' %}
-                        <i class="fas fa-arrow-trend-down mr-2"></i>
-                        {% else %}
-                        <i class="fas fa-minus mr-2"></i>
-                        {% endif %}
-                        {{ weight_prediction.message }}
-                    </p>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">7-Day Weight Forecast</h3>
+                    <div class="flex items-baseline gap-2">{% if weight_prediction.predicted_weight %}<span class="text-5xl font-extrabold">{{ weight_prediction.predicted_weight }}</span><span class="text-xl font-medium text-slate-400">kg</span>{% else %}<span class="text-3xl font-bold">Awaiting Data</span>{% endif %}</div>
+                    <p class="text-sm text-slate-400 mt-2">{% if weight_prediction.trend == 'Upward' %}<i class="fas fa-arrow-trend-up mr-2 text-red-400"></i>{% elif weight_prediction.trend == 'Downward' %}<i class="fas fa-arrow-trend-down mr-2 text-emerald-400"></i>{% else %}<i class="fas fa-minus mr-2"></i>{% endif %} {{ weight_prediction.message }}</p>
                 </div>
-
-                <div class="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/10">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider text-indigo-200">Target
-                            Attainment</span>
-                        <span class="text-xs font-bold">{{ weight_prediction.attainment_date }}</span>
-                    </div>
-                    <p class="text-[10px] text-indigo-200">Projected date to reach {{ profile.target_weight }}kg</p>
-                </div>
-
-                <div class="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/10">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider text-indigo-200">Model Confidence</span>
-                        <span class="text-xs font-bold">{{ weight_prediction.confidence_score|floatformat:2 }}</span>
-                    </div>
-                    <div class="w-full bg-white/20 rounded-full h-1.5">
-                        <div class="bg-green-400 h-1.5 rounded-full"
-                            style="width: {% widthratio weight_prediction.confidence_score 1 100 %}%"></div>
-                    </div>
-                </div>
+                <div class="bg-white/5 rounded-2xl p-4 border border-white/5"><div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-slate-400">Target Attainment</span><span class="text-xs font-bold">{{ weight_prediction.attainment_date }}</span></div></div>
             </div>
-
-            <div class="flex flex-col justify-center gap-4">
-                <div class="bg-white p-6 rounded-2xl shadow-lg transform rotate-1">
-                    <p class="text-slate-800 text-sm font-medium italic">
-                        "Your weight is projected to be {{ weight_prediction.predicted_weight|default:'--' }}kg by next
-                        week if current trends continue."
-                    </p>
-                </div>
-                <div class="flex items-center gap-4 px-2">
-                    <div class="flex -space-x-2">
-                        <div
-                            class="w-8 h-8 rounded-full bg-emerald-400 border-2 border-indigo-600 flex items-center justify-center text-[10px] font-bold">
-                            LR</div>
-                        <div
-                            class="w-8 h-8 rounded-full bg-green-400 border-2 border-indigo-600 flex items-center justify-center text-[10px] font-bold">
-                            AI</div>
-                    </div>
-                    <span class="text-xs text-indigo-100">Hybrid ML/AI Analysis Active</span>
-                </div>
-            </div>
+            <div class="bg-white/5 rounded-3xl p-6 border border-white/5 flex items-center italic text-sm text-slate-300">"Your weight is projected to be {{ weight_prediction.predicted_weight|default:'--' }}kg by next week if current trends continue."</div>
         </div>
     </div>
 
     <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
-        <h2 class="text-xl font-bold text-slate-800 mb-6 text-center">Trend Analysis</h2>
-        <div class="space-y-6">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-500">
-                    <i class="fas fa-gauge-high"></i>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-slate-800">Slope Coefficient</h4>
-                    <p class="text-xs text-slate-500">{{ weight_prediction.slope }} kg/day</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500">
-                    <i class="fas fa-calendar-check"></i>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-slate-800">Forecast Horizon</h4>
-                    <p class="text-xs text-slate-500">Next 7 Days</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-green-500">
-                    <i class="fas fa-shield-halved"></i>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-slate-800">Insight Status</h4>
-                    <p class="text-xs text-slate-500">Normal Range Predicted</p>
-                </div>
-            </div>
+        <div class="mt-2 rounded-2xl bg-slate-50 border border-slate-100 p-5">
+            <div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="fas fa-file-medical"></i></div><h3 class="text-sm font-bold text-slate-800">Current Status</h3></div>
+            <p class="text-xs leading-5 text-slate-600 whitespace-pre-line">{{ current_status_report }}</p>
         </div>
-        <div class="mt-8 pt-6 border-t border-slate-50">
-            <a href="{% url 'coach' %}"
-                class="block w-full text-center py-3 rounded-xl bg-slate-50 text-slate-600 font-bold text-sm hover:bg-slate-100 transition-colors">
-                View Full GPT Report
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-    <!-- Daily Weight History List -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <h2 class="text-xl font-semibold mb-6">Daily Weight History</h2>
-        <div class="max-h-64 overflow-y-auto space-y-3 pr-2">
-            {% for record in weight_records %}
-            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs">
-                        <i class="fas fa-calendar-day"></i>
-                    </div>
-                    <span class="text-sm font-medium text-slate-700">{{ record.date }}</span>
-                </div>
-                <span class="font-bold text-slate-800">{{ record.weight }} kg</span>
-            </div>
-            {% empty %}
-            <p class="text-slate-400 italic text-center py-4 text-sm">No weight history logged yet.</p>
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- Daily Diet Shortcut -->
-    <div
-        class="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-lg p-8 text-white flex flex-col justify-between">
-        <div>
-            <div class="flex items-center gap-3 mb-4">
-                <i class="fas fa-utensils text-2xl"></i>
-                <h2 class="text-2xl font-bold">Indian Diet Plan</h2>
-            </div>
-            <p class="text-green-50 opacity-90 text-sm mb-6 leading-relaxed">
-                Get a custom Indian meal plan ({{ profile.dietary_preference }}) generated by AI specifically for your
-                nutritional targets today.
-            </p>
-        </div>
-        <a href="{% url 'diet_plan' %}"
-            class="w-full bg-white text-emerald-600 font-bold py-4 rounded-xl text-center hover:bg-green-50 transition-all shadow-xl shadow-green-900/20">
-            View Today's Diet Plan
-        </a>
+        <a href="/report/" class="block w-full text-center py-3 mt-6 rounded-xl bg-slate-50 text-slate-600 font-bold text-sm hover:bg-slate-100 transition-colors">View Full GPT Report</a>
     </div>
 </div>
 
@@ -520,29 +169,62 @@
         <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
             <div class="flex items-center gap-4">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center 
-                    {% if log.meal_type == 'Breakfast' %}bg-amber-100 text-amber-600
-                    {% elif log.meal_type == 'Lunch' %}bg-emerald-100 text-emerald-600
-                    {% elif log.meal_type == 'Dinner' %}bg-indigo-100 text-indigo-600
-                    {% else %}bg-green-100 text-green-600{% endif %}">
-                    <i class="fas 
-                        {% if log.meal_type == 'Breakfast' %}fa-sun
-                        {% elif log.meal_type == 'Lunch' %}fa-cloud-sun
-                        {% elif log.meal_type == 'Dinner' %}fa-moon
-                        {% else %}fa-apple-whole{% endif %}"></i>
+                    {% if log.meal_type == 'Breakfast' %}bg-amber-100 text-amber-600{% elif log.meal_type == 'Lunch' %}bg-emerald-100 text-emerald-600{% elif log.meal_type == 'Dinner' %}bg-indigo-100 text-indigo-600{% else %}bg-green-100 text-green-600{% endif %}">
+                    <i class="fas {% if log.meal_type == 'Breakfast' %}fa-sun{% elif log.meal_type == 'Lunch' %}fa-cloud-sun{% elif log.meal_type == 'Dinner' %}fa-moon{% else %}fa-apple-whole{% endif %}"></i>
                 </div>
-                <div>
-                    <p class="font-semibold text-slate-800">{{ log.food_item.name }}</p>
-                    <p class="text-xs text-slate-500">{{ log.meal_type }} â€¢ {{ log.date }}</p>
-                </div>
+                <div><p class="font-semibold text-slate-800">{{ log.food_item.name }}</p><p class="text-xs text-slate-500">{{ log.meal_type }} • {{ log.date }}</p></div>
             </div>
-            <div class="text-right">
-                <p class="font-bold text-slate-800">+{{ log.total_calories|floatformat:0 }} kcal</p>
-            </div>
+            <p class="font-bold text-slate-800">+{{ log.total_calories|floatformat:0 }} kcal</p>
         </div>
-        {% empty %}
-        <p class="text-slate-400 italic">No meals logged yet. Start tracking today!</p>
-        {% endfor %}
+        {% empty %}<p class="text-slate-400 italic text-sm">No meals logged yet.</p>{% endfor %}
     </div>
 </div>
-{% endblock %}
 
+<div id="weightModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+        <div class="flex items-center justify-between mb-6"><h3 class="text-xl font-bold text-slate-800">Record Weight</h3><button onclick="document.getElementById('weightModal').classList.add('hidden')" class="text-slate-400"><i class="fas fa-times"></i></button></div>
+        <form action="{% url 'add_weight' %}" method="post" class="space-y-4">
+            {% csrf_token %}
+            <div><label class="block text-sm font-medium text-slate-600 mb-1">Weight (kg)</label><input type="number" step="0.1" name="weight" required value="{{ profile.weight }}" class="block w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"></div>
+            <div><label class="block text-sm font-medium text-slate-600 mb-1">Date</label><input type="date" name="date" required value="{% now 'Y-m-d' %}" class="block w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"></div>
+            <button type="submit" class="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all">Save Record</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let userWeight = parseFloat("{{ profile.weight }}");
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchDashboardWaterTarget();
+    });
+
+    async function fetchDashboardWaterTarget() {
+        try {
+            const res = await fetch(`/api/water-requirement/?weight=${userWeight}`);
+            const data = await res.json();
+            document.getElementById('dashWaterTarget').innerText = data.glasses || 8;
+            document.getElementById('dashWaterRationale').innerText = data.rationale || '';
+            updateDashWaterUI();
+        } catch (e) { document.getElementById('dashWaterTarget').innerText = '8'; }
+    }
+
+    function updateWater(action) {
+        const formData = new FormData();
+        formData.append('action', action);
+        fetch("{% url 'add_water' %}", { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token }}' } })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('dashWaterCounter').innerText = data.amount_glasses;
+            updateDashWaterUI();
+        });
+    }
+
+    function updateDashWaterUI() {
+        const current = parseInt(document.getElementById('dashWaterCounter').innerText);
+        const target = parseInt(document.getElementById('dashWaterTarget').innerText) || 8;
+        const progress = Math.min((current/target)*100, 100);
+        document.getElementById('dashWaterProgress').style.width = progress + "%";
+    }
+</script>
+{% endblock %}

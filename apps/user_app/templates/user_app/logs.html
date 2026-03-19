@@ -1,102 +1,342 @@
-﻿{% extends 'user_app/base.html' %}
+{% extends 'user_app/base.html' %}
 {% load static %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <div class="lg:col-span-1">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-6">Log Meal</h2>
-            <form id="logForm" class="space-y-4">
-                {% csrf_token %}
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Food Item</label>
-                    <select name="food_item_id" id="foodItem" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" required>
-                        <option value="">Select food...</option>
-                        {% for food in food_items %}
-                        <option value="{{ food.id }}" data-calories="{{ food.calories }}">{{ food.name }} ({{ food.calories }} kcal)</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Meal Type</label>
-                    <select name="meal_type" id="mealType" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" required>
-                        <option value="Breakfast">Breakfast</option>
-                        <option value="Lunch">Lunch</option>
-                        <option value="Dinner">Dinner</option>
-                        <option value="Snack">Snack</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Date</label>
-                    <input type="date" name="date" id="logDate" value="{% now 'Y-m-d' %}" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                    <input type="number" name="quantity" id="quantity" value="1" step="0.1" min="0.1" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" required>
-                </div>
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-200">
-                    Add Meal
-                </button>
-            </form>
+<div class="relative min-h-screen">
+    <!-- Top Bar with Calendar Trigger & AI Summary -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
+        <div class="space-y-1">
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                 <span id="activeDateDisplay" class="text-indigo-600">Today</span>
+                 <span class="text-slate-300 font-normal">/</span>
+                 <span class="text-slate-400 text-lg">Daily Log</span>
+            </h1>
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-widest">Synchronized with Gemini AI Health Core</p>
         </div>
-        
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 class="text-xl font-semibold mb-6">BMR Calculator</h2>
-            <div class="space-y-4">
-                <div>
-                    <p class="text-sm text-slate-500">BMR (Basal Metabolic Rate)</p>
-                    <p class="text-2xl font-bold text-slate-800">{{ stats.bmr }} kcal/day</p>
+
+        <div class="flex items-center gap-4 w-full lg:w-auto">
+            <!-- CALENDAR TRIGGER BUTTON -->
+            <button id="calendarBtn" onclick="toggleCalendar()" class="flex-1 lg:flex-none px-6 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-3 group">
+                <i class="fas fa-calendar-day text-indigo-500 group-hover:scale-110 transition-transform"></i>
+                <span class="font-black text-slate-700 text-sm" id="btnDateText">View Calendar</span>
+            </button>
+            <button onclick="toggleDietPlanner()" class="flex-1 lg:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100 font-black text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+                <i class="fas fa-robot"></i> AI Planner
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN GRID LAYOUT -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- LOGS AREA -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="flex items-center justify-between px-2">
+                <h2 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Activity Streams</h2>
+                <div class="flex gap-2">
+                    <button onclick="toggleLogForm()" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-100 transition-colors">
+                        Add Record +
+                    </button>
+                </div>
+            </div>
+
+            <!-- COLLAPSIBLE LOG FORM -->
+            <div id="logFormCard" class="hidden bg-white rounded-3xl border-2 border-dashed border-slate-100 p-8 animate-in fade-in zoom-in duration-200">
+                <form id="dailyLogForm" class="space-y-6">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase text-slate-400 mb-2">Select Nutrient Node</label>
+                            <select name="food_item_id" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
+                                {% for f in food_items %}<option value="{{f.id}}">{{f.name}} ({{f.calories}} kcal)</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase text-slate-400 mb-2">Temporal Window</label>
+                            <select name="meal_type" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option>Breakfast</option><option>Lunch</option><option>Snack</option><option>Dinner</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm hover:bg-black transition-all shadow-xl">Commit Log Entry</button>
+                </form>
+            </div>
+
+            <!-- LOGS CONTAINER -->
+            <div id="dailyLogsContainer" class="space-y-4">
+                <!-- Data streams via AJAX -->
+            </div>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div class="space-y-8">
+            <!-- HYDRATION NODE -->
+            <div class="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 opacity-10 group-hover:rotate-12 transition-transform duration-700">
+                    <i class="fas fa-droplet text-[12rem]"></i>
+                </div>
+                <div class="relative z-1">
+                    <div class="flex items-center justify-between mb-8">
+                        <span class="px-3 py-1 bg-white/20 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20">Active Intake</span>
+                        <i class="fas fa-sync-alt text-indigo-300 animate-spin-slow"></i>
+                    </div>
+                    
+                    <div class="flex items-baseline gap-3 mb-2">
+                        <h3 id="waterCounter" class="text-6xl font-black">--</h3>
+                        <span class="text-indigo-200 text-xs font-black uppercase tracking-tighter">Glasses Target</span>
+                    </div>
+
+                    <div class="h-1.5 w-full bg-indigo-500/50 rounded-full mb-8 overflow-hidden">
+                        <div id="waterProgress" class="h-full bg-white rounded-full transition-all duration-1000" style="width: 0%"></div>
+                    </div>
+
+                    <div class="bg-indigo-700/50 rounded-3xl p-5 border border-white/5 backdrop-blur-sm mb-8">
+                        <p class="text-[10px] uppercase font-black text-indigo-300 mb-2">Gemini Analysis</p>
+                        <p id="waterRationale" class="text-xs font-bold leading-relaxed text-indigo-100 italic">Determining requirements...</p>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button onclick="updateWater(1)" class="flex-1 py-4 bg-white text-indigo-600 rounded-2xl font-black text-xs hover:bg-slate-50 transition-all shadow-lg">+ Add</button>
+                        <button onclick="updateWater(-1)" class="flex-1 py-4 bg-indigo-500/50 text-white rounded-2xl font-black text-xs hover:bg-indigo-500/80 transition-all border border-white/10">- Del</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BIOMETRIC DATA -->
+            <div class="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-6">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400">Body Stats</h4>
+                    <span class="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300"><i class="fas fa-weight"></i></span>
                 </div>
                 <div>
-                    <p class="text-sm text-slate-500">TDEE (Total Daily Energy Expenditure)</p>
-                    <p class="text-2xl font-bold text-slate-800">{{ stats.tdee }} kcal/day</p>
+                   <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-tighter">Current Mass</p>
+                   <p class="text-4xl font-black text-slate-800">{{ profile.weight }} <span class="text-lg text-slate-300 font-bold">kg</span></p>
                 </div>
-                <div>
-                    <p class="text-sm text-slate-500">Daily Calorie Target</p>
-                    <p class="text-2xl font-bold text-slate-800">{{ stats.daily_calorie_target }} kcal</p>
+                <div class="pt-4 border-t border-slate-50">
+                    <p class="text-[10px] leading-relaxed text-slate-400 italic">Water requirement is dynamically recalculated based on this weight via Gemini Pro.</p>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div class="lg:col-span-2">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 class="text-xl font-semibold mb-6">Recent Activity</h2>
-            <div class="space-y-4" id="logsList">
-                {% for log in logs %}
-                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center 
-                            {% if log.meal_type == 'Breakfast' %}bg-amber-100 text-amber-600
-                            {% elif log.meal_type == 'Lunch' %}bg-emerald-100 text-emerald-600
-                            {% elif log.meal_type == 'Dinner' %}bg-indigo-100 text-indigo-600
-                            {% else %}bg-green-100 text-green-600{% endif %}">
-                            <i class="fas 
-                                {% if log.meal_type == 'Breakfast' %}fa-sun
-                                {% elif log.meal_type == 'Lunch' %}fa-cloud-sun
-                                {% elif log.meal_type == 'Dinner' %}fa-moon
-                                {% else %}fa-apple-whole{% endif %}"></i>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-slate-800">{{ log.food_item.name }}</p>
-                            <p class="text-xs text-slate-500">{{ log.meal_type }} â€¢ {{ log.date }}</p>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-bold text-slate-800">+{{ log.total_calories|floatformat:0 }} kcal</p>
-                    </div>
+
+    <!-- WINDOWS STYLE NOTIFICATION CALENDAR PANEL -->
+    <div id="calendarPanel" class="fixed right-[-450px] bottom-0 top-0 w-[400px] bg-white shadow-[-20px_0_50px_rgba(0,0,0,0.1)] transition-all duration-500 z-[100] flex flex-col p-8 border-l border-slate-100 backdrop-blur-lg">
+        <div class="flex items-center justify-between mb-8">
+            <h3 class="text-xl font-black text-slate-800">Date Selection</h3>
+            <button onclick="toggleCalendar()" class="w-10 h-10 bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full flex items-center justify-center transition-all">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="relative mb-6">
+            <input type="date" id="calendarSearchLine" onchange="jumpToDate(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <i class="fas fa-search text-xs"></i>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col justify-center">
+            <div class="flex items-center justify-between mb-6 px-2">
+                <button onclick="changeMonth(-1)" class="w-10 h-10 hover:bg-slate-50 rounded-full transition-colors"><i class="fas fa-chevron-left text-xs"></i></button>
+                <span id="monthYearLabel" class="text-sm font-black text-slate-800 uppercase tracking-[0.2em]">--</span>
+                <button onclick="changeMonth(1)" class="w-10 h-10 hover:bg-slate-50 rounded-full transition-colors"><i class="fas fa-chevron-right text-xs"></i></button>
+            </div>
+
+            <div class="grid grid-cols-7 gap-1 text-center mb-4">
+                {% for d in "SMTWTFS" %}<span class="text-[9px] font-black text-slate-300 uppercase">{{d}}</span>{% endfor %}
+            </div>
+
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1 flex-1 content-start">
+                <!-- JS Calendar Population -->
+            </div>
+        </div>
+
+        <div class="mt-8 pt-8 border-t border-slate-100">
+            <button onclick="jumpToDate(new Date().toISOString().split('T')[0])" class="w-full py-4 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-xs hover:bg-indigo-100 transition-all">
+                Reset to Today
+            </button>
+        </div>
+    </div>
+
+    <!-- DIET PLANNER MODAL OVERLAY -->
+    <div id="dietPlannerSection" class="hidden fixed inset-0 z-[200] overflow-y-auto bg-slate-900/40 backdrop-blur-sm p-4 md:p-10 animate-in fade-in duration-300">
+        <div class="max-w-6xl mx-auto">
+            <div class="bg-white rounded-[3rem] shadow-2xl relative">
+                <button onclick="toggleDietPlanner()" class="absolute top-8 right-8 w-12 h-12 bg-slate-50 text-slate-400 hover:text-red-500 rounded-full flex items-center justify-center z-10">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+                <div class="p-4 md:p-10">
+                    <h2 class="text-3xl font-black text-slate-800 mb-2">Synthetic Intelligence Protocol</h2>
+                    <p class="text-slate-500 font-bold text-sm mb-10">Neural analysis powered by Gemini Flash 2.0</p>
+                    {% include 'user_app/includes/diet_planner.html' %}
                 </div>
-                {% empty %}
-                <p class="text-slate-400 italic">No meals logged yet. Start tracking today!</p>
-                {% endfor %}
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    #calendarPanel.open { right: 0; }
+    .cal-day { aspect-ratio: 1; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.2s; display: flex; items-center; justify-center; }
+    .cal-day:hover:not(.empty) { @apply bg-slate-50 text-indigo-600; transform: scale(1.1); }
+    .cal-day.today { @apply bg-indigo-50 text-indigo-600; }
+    .cal-day.selected { @apply bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110; }
+    .animate-spin-slow { animation: spin 8s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/logs.js' %}"></script>
+<script>
+    let activeDate = new Date();
+    let displayMonth = new Date();
+    let userWeight = parseFloat("{{ profile.weight }}");
+
+    document.addEventListener('DOMContentLoaded', () => {
+        populateCalendar();
+        loadDailyState(formatDate(activeDate));
+        fetchGeminiWaterRequirement();
+        document.getElementById('dailyLogForm').addEventListener('submit', handleLogSubmit);
+    });
+
+    function toggleCalendar() {
+        const panel = document.getElementById('calendarPanel');
+        panel.classList.toggle('open');
+    }
+
+    function toggleDietPlanner() {
+        const section = document.getElementById('dietPlannerSection');
+        section.classList.toggle('hidden');
+        document.body.style.overflow = section.classList.contains('hidden') ? 'auto' : 'hidden';
+    }
+
+    function toggleLogForm() {
+        const card = document.getElementById('logFormCard');
+        card.classList.toggle('hidden');
+    }
+
+    function populateCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const label = document.getElementById('monthYearLabel');
+        grid.innerHTML = '';
+        const year = displayMonth.getFullYear();
+        const month = displayMonth.getMonth();
+        label.innerText = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(displayMonth);
+        const first = new Date(year, month, 1).getDay();
+        const days = new Date(year, month + 1, 0).getDate();
+        for (let i = 0; i < first; i++) grid.innerHTML += '<div class="cal-day empty"></div>';
+        const today = new Date();
+        for (let d = 1; d <= days; d++) {
+            const current = new Date(year, month, d);
+            const isToday = current.toDateString() === today.toDateString();
+            const isSelected = current.toDateString() === activeDate.toDateString();
+            const dStr = formatDate(current);
+            grid.innerHTML += `<div onclick="jumpToDate('${dStr}')" class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} text-slate-500">${d}</div>`;
+        }
+    }
+
+    function changeMonth(delta) {
+        displayMonth.setMonth(displayMonth.getMonth() + delta);
+        populateCalendar();
+    }
+
+    function jumpToDate(dateStr) {
+        const d = new Date(dateStr);
+        if (isNaN(d)) return;
+        activeDate = d;
+        displayMonth = new Date(d);
+        populateCalendar();
+        loadDailyState(dateStr);
+        document.getElementById('btnDateText').innerText = dateStr === formatDate(new Date()) ? 'Today' : dateStr;
+        document.getElementById('calendarPanel').classList.remove('open');
+    }
+
+    async function loadDailyState(dateStr) {
+        const display = document.getElementById('activeDateDisplay');
+        const container = document.getElementById('dailyLogsContainer');
+        display.innerText = dateStr === formatDate(new Date()) ? 'Today' : dateStr;
+        container.innerHTML = '<div class="flex justify-center py-20 animate-pulse"><div class="w-8 h-8 rounded-full border-4 border-indigo-200 border-t-indigo-500 animate-spin"></div></div>';
+        try {
+            const res = await fetch(`/api/logs-by-date/?date=${dateStr}`);
+            const data = await res.json();
+            if (data.success) {
+                renderGroupedLogs(data.activity);
+                syncWaterUI(data.water);
+            }
+        } catch (e) { container.innerHTML = '<p class="text-slate-400 text-center py-10">Data Synchronization Failed.</p>'; }
+    }
+
+    function renderGroupedLogs(activity) {
+        const container = document.getElementById('dailyLogsContainer');
+        if (!activity || activity.length === 0) {
+            container.innerHTML = `<div class="text-center py-24 bg-white rounded-[2.5rem] border border-slate-50"><p class="text-[10px] font-black uppercase text-slate-300 tracking-[0.3em] mb-4">Null Entry Node</p><p class="text-slate-400 text-sm font-bold">No historical data found for this temporal coordinate.</p></div>`;
+            return;
+        }
+        const groups = { Breakfast: [], Lunch: [], Snack: [], Dinner: [] };
+        activity.forEach(a => groups[a.meal_type]?.push(a));
+        let html = '';
+        for (const [type, items] of Object.entries(groups)) {
+            if (items.length === 0) continue;
+            html += `<div class="bg-white rounded-[2rem] p-6 border border-slate-50 shadow-sm hover:shadow-md transition-shadow"><div class="flex items-center gap-2 mb-4"><span class="w-1.5 h-1.5 rounded-full ${type==='Breakfast'?'bg-amber-400':type==='Lunch'?'bg-emerald-400':type==='Dinner'?'bg-indigo-400':'bg-pink-400'}"></span><h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${type}</h3></div><div class="space-y-4">${items.map(item => `<div class="flex items-center justify-between"><div class="space-y-1"><p class="text-sm font-black text-slate-700">${item.title}</p>${item.details ? `<p class="text-[9px] text-slate-400 leading-relaxed max-w-sm line-clamp-1 italic">${item.details}</p>` : ''}</div><div class="text-right"><p class="text-xs font-black text-slate-800">+${item.calories} kcal</p><span class="px-2 py-0.5 bg-slate-50 text-[8px] font-black text-slate-300 uppercase rounded">${item.source==='diet_plan'?'Synth':'Manual'}</span></div></div>`).join('')}</div></div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    async function fetchGeminiWaterRequirement() {
+        try {
+            const res = await fetch(`/api/water-requirement/?weight=${userWeight}`);
+            const data = await res.json();
+            document.getElementById('waterCounter').dataset.target = data.glasses || 8;
+            document.getElementById('waterRationale').innerText = data.rationale || 'Calculating...';
+            syncWaterProgress();
+        } catch (e) { console.error("Water Sync Failure"); }
+    }
+
+    function syncWaterUI(data) {
+        document.getElementById('waterCounter').dataset.current = data.amount;
+        syncWaterProgress();
+    }
+
+    function syncWaterProgress() {
+        const current = parseInt(document.getElementById('waterCounter').dataset.current || 0);
+        const target = parseInt(document.getElementById('waterCounter').dataset.target || 8);
+        document.getElementById('waterCounter').innerHTML = `${current} <span class="text-2xl opacity-40">/ ${target}</span>`;
+        const percent = Math.min((current / target) * 100, 100);
+        document.getElementById('waterProgress').style.width = `${percent}%`;
+    }
+
+    async function updateWater(delta) {
+        let current = parseInt(document.getElementById('waterCounter').dataset.current || 0);
+        current = Math.max(0, current + delta);
+        document.getElementById('waterCounter').dataset.current = current;
+        syncWaterProgress();
+        try {
+            const res = await fetch('/api/add-water/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: `action=${delta > 0 ? 'add' : 'remove'}&date=${formatDate(activeDate)}`
+            });
+            const data = await res.json();
+            syncWaterUI({ amount: data.amount_glasses, target: data.target_glasses });
+        } catch (e) { console.error("Hydration Uplink Failed"); }
+    }
+
+    async function handleLogSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const dateStr = formatDate(activeDate);
+        const payload = { food_item_id: formData.get('food_item_id'), meal_type: formData.get('meal_type'), date: dateStr, quantity: 1 };
+        try {
+            const res = await fetch('/api/add-log/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(payload) });
+            if (res.ok) { toggleLogForm(); loadDailyState(dateStr); }
+        } catch (e) { alert("Buffer Overflow: Log record rejected."); }
+    }
+
+    function formatDate(date) {
+        const d = new Date(date);
+        let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
+        if (month.length < 2) month = '0' + month;
+        if (day.length < 2) day = '0' + day;
+        return [year, month, day].join('-');
+    }
+</script>
 {% endblock %}
-
-

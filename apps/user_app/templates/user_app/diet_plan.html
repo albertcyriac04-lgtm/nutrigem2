@@ -7,8 +7,7 @@
         <div class="flex items-center justify-between mb-8">
             <div>
                 <h1 class="text-3xl font-bold mb-2">Today's Healthy Indian Diet</h1>
-                <p class="text-green-100 opacity-80">{{ plan.date|date:"F d, Y" }} â€¢ Personalized for {{
-                    profile.dietary_preference }}</p>
+                <p class="text-green-100 opacity-80">{{ plan_date|date:"F d, Y" }} | Personalized for {{ profile.dietary_preference }}</p>
             </div>
             <div class="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
                 <i class="fas fa-leaf text-3xl"></i>
@@ -17,10 +16,11 @@
 
         <div class="bg-white/10 rounded-2xl p-6 backdrop-blur-md border border-white/10">
             <h2 class="text-lg font-bold mb-2">AI Summary</h2>
-            <p class="text-sm leading-relaxed text-green-50 italic">{{ plan.summary }}</p>
+            <p class="text-sm leading-relaxed text-green-50 italic">{{ plan.summary|default:"Your personalized diet plan is ready." }}</p>
         </div>
     </div>
 
+    {% if plan %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <!-- Breakfast -->
         <div
@@ -32,10 +32,11 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-800">Breakfast</h3>
                 </div>
-                <span class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">{{ plan.breakfast_calories
-                    }} kcal</span>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                    {{ plan.breakfast_calories|floatformat:0 }} kcal
+                </span>
             </div>
-            <div class="text-slate-600 text-sm leading-relaxed whitespace-pre-line mb-4">
+            <div class="text-slate-600 text-sm leading-8 whitespace-pre-line mb-4">
                 {{ plan.breakfast }}
             </div>
             {% if meal_log.breakfast_content %}
@@ -61,10 +62,11 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-800">Lunch</h3>
                 </div>
-                <span class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">{{ plan.lunch_calories }}
-                    kcal</span>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                    {{ plan.lunch_calories|floatformat:0 }} kcal
+                </span>
             </div>
-            <div class="text-slate-600 text-sm leading-relaxed whitespace-pre-line mb-4">
+            <div class="text-slate-600 text-sm leading-8 whitespace-pre-line mb-4">
                 {{ plan.lunch }}
             </div>
             {% if meal_log.lunch_content %}
@@ -90,10 +92,11 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-800">Snacks & Tea</h3>
                 </div>
-                <span class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">{{ plan.snacks_calories }}
-                    kcal</span>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                    {{ plan.snacks_calories|floatformat:0 }} kcal
+                </span>
             </div>
-            <div class="text-slate-600 text-sm leading-relaxed whitespace-pre-line mb-4">
+            <div class="text-slate-600 text-sm leading-8 whitespace-pre-line mb-4">
                 {{ plan.snacks }}
             </div>
             {% if meal_log.snacks_content %}
@@ -119,10 +122,11 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-800">Dinner</h3>
                 </div>
-                <span class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">{{ plan.dinner_calories }}
-                    kcal</span>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                    {{ plan.dinner_calories|floatformat:0 }} kcal
+                </span>
             </div>
-            <div class="text-slate-600 text-sm leading-relaxed whitespace-pre-line mb-4">
+            <div class="text-slate-600 text-sm leading-8 whitespace-pre-line mb-4">
                 {{ plan.dinner }}
             </div>
             {% if meal_log.dinner_content %}
@@ -204,6 +208,12 @@
                 });
         }
     </script>
+    {% else %}
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center mb-8">
+        <h2 class="text-xl font-bold text-slate-800 mb-2">Diet plan unavailable</h2>
+        <p class="text-sm text-slate-500">We could not generate a valid allergy-safe plan right now. Please try again shortly.</p>
+    </div>
+    {% endif %}
 </div>
 
 <div class="bg-slate-900 rounded-2xl p-8 text-center text-white">
