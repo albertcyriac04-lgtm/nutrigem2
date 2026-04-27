@@ -14,6 +14,7 @@ from user_app.views import (
     api_logs_by_date,
     send_registration_otp,
     toggle_food_preference_api,
+    log_favorite_api,
     all_logs_view,
     api_get_water_requirement,
     favorites_view
@@ -42,6 +43,7 @@ urlpatterns = [
     path('api/add-weight/', add_weight_record, name='add_weight'),
     path('api/add-water/', add_water_api, name='add_water'),
     path('api/log-meal/', log_meal_api, name='log_meal'),
+    path('api/log-favorite/', log_favorite_api, name='log_favorite'),
     path('api/remove-meal/', remove_meal_api, name='remove_meal'),
     path('api/coach/', ai_coach_api, name='ai_coach_api'),
     path('diet/', get_diet_plan, name='diet_plan'),

@@ -17,7 +17,7 @@ NutriDiet is a Django-based nutrition and health tracking platform that combines
 - Manual meal logging and daily meal-plan logging.
 - Water tracking with per-user hydration targets.
 - AI coach chat powered by Google Gemini.
-- AI diet plan generation for standard and advanced planner flows.
+- AI diet plan generation for standard and advanced planner flows, with OpenRouter fallback when Gemini is unavailable.
 - Weight forecasting with linear regression.
 - PDF and Excel report export.
 - Billing, subscription upgrades, and invoice downloads.
@@ -69,6 +69,7 @@ NutriDiet is a Django-based nutrition and health tracking platform that combines
       DB_PASSWORD=your_password
       DB_HOST=localhost
       DB_PORT=3306
+      GEMINI_API_KEY=your_gemini_api_key
       ```
 
 ### Settings Layout

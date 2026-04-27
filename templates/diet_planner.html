@@ -30,7 +30,7 @@
             Advanced <span class="gradient-text">AI Diet</span> Planner
         </h1>
         <p class="text-slate-500 text-lg max-w-2xl mx-auto">
-            Powered by Google Gemini 2.0 Flash. Generate hyper-personalized, culturally aware diet plans instantly.
+            Powered by Google Gemini. Generate hyper-personalized, culturally aware diet plans instantly.
         </p>
     </div>
 
@@ -97,6 +97,10 @@
 
     <!-- Results Section -->
     <div id="resultsSection" class="hidden space-y-8 fade-in">
+        <div id="plannerNotice" class="hidden rounded-3xl border border-amber-200 bg-amber-50 px-6 py-4">
+            <p class="text-xs font-black uppercase tracking-widest text-amber-600 mb-1">Planner Notice</p>
+            <p id="plannerNoticeText" class="text-sm font-bold text-amber-900"></p>
+        </div>
         <!-- Top Metrics -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div id="bmiCard" class="bg-white rounded-3xl p-6 shadow-sm border-2 border-transparent">
@@ -209,7 +213,10 @@ document.getElementById('dietForm').addEventListener('submit', function(e) {
         renderResults(res);
     })
     .catch(err => {
-        alert("Failed to generate plan: " + err.message);
+        const fallbackMsg = "AI plan could not be generated: " + err.message + "\n\nWould you like to select a meal from your Favorites instead?";
+        if (confirm(fallbackMsg)) {
+            window.location.href = "{% url 'favorites' %}";
+        }
     })
     .finally(() => {
         document.getElementById('submitBtn').disabled = false;
@@ -219,6 +226,8 @@ document.getElementById('dietForm').addEventListener('submit', function(e) {
 
 function renderResults(res) {
     const data = res.data;
+    const plannerNotice = document.getElementById('plannerNotice');
+    const plannerNoticeText = document.getElementById('plannerNoticeText');
     
     // BMI
     const colorMap = {
@@ -262,6 +271,13 @@ function renderResults(res) {
         document.getElementById('medicalAlert').classList.remove('hidden');
     } else {
         document.getElementById('medicalAlert').classList.add('hidden');
+    }
+
+    if (res._meta?.fallback || res.error) {
+        plannerNoticeText.innerText = data.medical_alert || res.error || 'Gemini is unavailable right now, so these suggestions were prepared from your saved profile.';
+        plannerNotice.classList.remove('hidden');
+    } else {
+        plannerNotice.classList.add('hidden');
     }
 
     // Hydration

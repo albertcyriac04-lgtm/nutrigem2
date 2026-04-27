@@ -54,7 +54,7 @@ class UserProfileAdmin(BaseAdmin):
         'display_user', 'name', 'age', 'gender', 'weight', 'target_weight',
         'dietary_preference', 'subscription_status', 'created_at'
     ]
-    list_filter = ['gender', 'dietary_preference', 'subscription_status', 'activity_multiplier', 'created_at']
+    list_filter = ['gender', 'dietary_preference', 'activity_multiplier', 'created_at']
     search_fields = ['name', 'user__username', 'user__first_name', 'user__last_name', 'user__email']
     ordering = ['-created_at']
     list_per_page = 25
@@ -71,9 +71,6 @@ class UserProfileAdmin(BaseAdmin):
         ('Nutrition Preferences', {
             'fields': ('dietary_preference', 'food_allergies', 'medical_conditions', 'diet_restrictions')
         }),
-        ('Subscription', {
-            'fields': ('subscription_status', 'subscription_expires')
-        }),
         ('Profile', {
             'fields': ('profile_image_url',)
         }),
@@ -87,6 +84,14 @@ class UserProfileAdmin(BaseAdmin):
         if obj.user:
             return obj.user.get_full_name() or obj.user.username
         return '-'
+
+    @admin.display(description='Subscription')
+    def subscription_status(self, obj):
+        """Show active subscription status from the related UserSubscription model."""
+        sub = obj.active_subscription
+        if sub:
+            return f"{sub.plan.name} ({sub.status})"
+        return '—'
 
 nutridiet_admin.register(UserProfile, UserProfileAdmin)
 

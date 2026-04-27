@@ -12,22 +12,34 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.contrib import messages
+from django.utils.cache import add_never_cache_headers
 import json
 import uuid
 import re
 import random
 from django.utils import timezone
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
 
 from api.models import (
     UserProfile, FoodItem, ConsumptionLog, WeightRecord, WaterLog,
-    DailyDietPlan, DailyMealLog, SubscriptionPlan, Transaction, RegistrationOTP,
-    FoodPreference
+    DailyDietPlan, DailyMealLog, MealLogEntry, SubscriptionPlan, Transaction, RegistrationOTP,
+    FoodPreference, table_has_columns
 )
 from api.serializers import UserProfileSerializer, FoodItemSerializer, ConsumptionLogSerializer, WeightRecordSerializer
 from api.ml_utils import predict_weight_trend
-from api.ai_utils import generate_indian_diet, generate_report_summary, normalize_saved_diet_plan, calculate_bmi, classify_bmi, get_water_recommendation
+from api.ai_utils import (
+    GeminiQuotaError,
+    _generate_gemini_content,
+    calculate_bmi,
+    classify_bmi,
+    friendly_gemini_error,
+    generate_indian_diet,
+    generate_report_summary,
+    get_water_recommendation,
+    normalize_saved_diet_plan,
+)
 from api.report_utils import export_to_excel, export_to_pdf
-import google.generativeai as genai
 
 # ══════════════════════════════════════════════════════════
 # CUSTOM VALIDATORS & FORMS
@@ -124,21 +136,36 @@ def build_recent_activity(profile):
     }
 
     for meal_log in diet_logs:
-        for key in ('breakfast', 'lunch', 'dinner', 'snacks'):
-            content = getattr(meal_log, f'{key}_content', '')
-            calories = getattr(meal_log, f'{key}_calories', 0)
-            if not content:
-                continue
-            first_line = content.splitlines()[0].lstrip('- ').strip()
+        if _daily_meal_log_uses_legacy_columns() or not _meal_log_entries_available():
+            for key in ('breakfast', 'lunch', 'dinner', 'snacks'):
+                content = getattr(meal_log, f'{key}_content', '')
+                calories = getattr(meal_log, f'{key}_calories', 0)
+                if not content:
+                    continue
+                first_line = content.splitlines()[0].lstrip('- ').strip()
+                activity.append({
+                    'source': 'diet_plan',
+                    'meal_type': meal_labels[key],
+                    'title': first_line or f"{meal_labels[key]} from diet plan",
+                    'subtitle': f"Diet plan meal | {meal_log.date.strftime('%Y-%m-%d')}",
+                    'date': meal_log.date,
+                    'calories': calories,
+                    'details': content,
+                    'sort_weight': meal_order.get(meal_labels[key], 0),
+                })
+            continue
+
+        for entry in MealLogEntry.objects.filter(meal_log=meal_log).order_by('id'):
+            first_line = (entry.content or '').splitlines()[0].lstrip('- ').strip()
             activity.append({
                 'source': 'diet_plan',
-                'meal_type': meal_labels[key],
-                'title': first_line or f"{meal_labels[key]} from diet plan",
+                'meal_type': entry.meal_type,
+                'title': first_line or f"{entry.meal_type} from diet plan",
                 'subtitle': f"Diet plan meal | {meal_log.date.strftime('%Y-%m-%d')}",
                 'date': meal_log.date,
-                'calories': calories,
-                'details': content,
-                'sort_weight': meal_order.get(meal_labels[key], 0),
+                'calories': entry.calories,
+                'details': entry.content,
+                'sort_weight': meal_order.get(entry.meal_type, 0),
             })
 
     activity.sort(key=lambda item: (-item['date'].toordinal(), item['sort_weight']))
@@ -176,12 +203,20 @@ def verified_user_redirect(request):
         return redirect('/admin/')
     return None
 
+
+def _never_cache_response(response):
+    add_never_cache_headers(response)
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
+
 def landing(request):
     if request.user.is_authenticated:
         if request.user.is_staff:
             return redirect('/admin/')
         return redirect('index')
-    return render(request, 'user_app/landing.html')
+    return _never_cache_response(render(request, 'user_app/landing.html'))
 
 @login_required
 def index(request):
@@ -201,8 +236,7 @@ def index(request):
     
     today = timezone.now().date()
     water_log, created = WaterLog.objects.get_or_create(
-        user_profile=profile, date=today,
-        defaults={'target_glasses': profile.water_requirement_glasses}
+        user_profile=profile, date=today
     )
     daily_meal_log = DailyMealLog.objects.filter(user_profile=profile, date=today).first()
     
@@ -321,7 +355,7 @@ def login_view(request):
             return redirect('/admin/') if user.is_staff else redirect('index')
         else:
             messages.error(request, 'Invalid username or password.')
-    return render(request, 'user_app/login.html')
+    return _never_cache_response(render(request, 'user_app/login.html'))
 
 def logs_view(request):
     redirect_res = verified_user_redirect(request)
@@ -330,9 +364,10 @@ def logs_view(request):
     except UserProfile.DoesNotExist: return redirect('settings')
     grouped_logs = build_grouped_activity(profile, limit=20)
     food_items = FoodItem.objects.all()
+    favorite_foods = FoodPreference.objects.filter(user_profile=profile, is_favorite=True).order_by('-created_at')[:8]
     stats = calculate_dashboard_stats(profile)
-    context = {'profile': profile, 'grouped_logs': grouped_logs, 'food_items': food_items, 'stats': stats, 'limit_mode': True}
-    return render(request, 'user_app/logs.html', context)
+    context = {'profile': profile, 'grouped_logs': grouped_logs, 'food_items': food_items, 'favorite_foods': favorite_foods, 'stats': stats, 'limit_mode': True}
+    return _never_cache_response(render(request, 'user_app/logs.html', context))
 
 def all_logs_view(request):
     redirect_res = verified_user_redirect(request)
@@ -341,9 +376,10 @@ def all_logs_view(request):
     except UserProfile.DoesNotExist: return redirect('settings')
     grouped_logs = build_grouped_activity(profile)
     food_items = FoodItem.objects.all()
+    favorite_foods = FoodPreference.objects.filter(user_profile=profile, is_favorite=True).order_by('-created_at')[:8]
     stats = calculate_dashboard_stats(profile)
-    context = {'profile': profile, 'grouped_logs': grouped_logs, 'food_items': food_items, 'stats': stats, 'limit_mode': False}
-    return render(request, 'user_app/logs.html', context)
+    context = {'profile': profile, 'grouped_logs': grouped_logs, 'food_items': food_items, 'favorite_foods': favorite_foods, 'stats': stats, 'limit_mode': False}
+    return _never_cache_response(render(request, 'user_app/logs.html', context))
 
 def coach_view(request):
     redirect_res = verified_user_redirect(request)
@@ -352,14 +388,14 @@ def coach_view(request):
     except UserProfile.DoesNotExist: return redirect('settings')
     logs = ConsumptionLog.objects.filter(user_profile=profile).order_by('-date', '-created_at')[:20]
     food_items = FoodItem.objects.all()
-    return render(request, 'user_app/coach.html', {'profile': profile, 'logs': logs, 'food_items': food_items})
+    return _never_cache_response(render(request, 'user_app/coach.html', {'profile': profile, 'logs': logs, 'food_items': food_items}))
 
 def favorites_view(request):
     redirect_res = verified_user_redirect(request)
     if redirect_res: return redirect_res
     profile = request.user.profile
     favorite_foods = FoodPreference.objects.filter(user_profile=profile, is_favorite=True).order_by('-created_at')
-    return render(request, 'user_app/favorites.html', {'profile': profile, 'favorite_foods': favorite_foods})
+    return _never_cache_response(render(request, 'user_app/favorites.html', {'profile': profile, 'favorite_foods': favorite_foods}))
 
 def full_report_view(request):
     redirect_res = verified_user_redirect(request)
@@ -383,7 +419,7 @@ def full_report_view(request):
         'weight_records': weight_records, 'water_logs': water_logs,
         'report_start_date': start_date, 'report_end_date': today,
     }
-    return render(request, 'user_app/full_report.html', context)
+    return _never_cache_response(render(request, 'user_app/full_report.html', context))
 
 def settings_view(request):
     redirect_res = verified_user_redirect(request)
@@ -433,7 +469,7 @@ def settings_view(request):
         'default_end_date': today.strftime('%Y-%m-%d'),
         'favorite_foods': favorite_foods
     }
-    return render(request, 'user_app/settings.html', context)
+    return _never_cache_response(render(request, 'user_app/settings.html', context))
 
 def calculate_dashboard_stats(profile):
     weight, height, age, gender = profile.weight, profile.height, profile.age, profile.gender
@@ -446,6 +482,123 @@ def calculate_dashboard_stats(profile):
     daily_meal_log = DailyMealLog.objects.filter(user_profile=profile, date=today).first()
     if daily_meal_log: current_calories += daily_meal_log.total_calories_consumed
     return {'bmr': round(bmr), 'tdee': round(tdee), 'daily_calorie_target': round(daily_calorie_target), 'current_calories': round(current_calories), 'protein_target': round((daily_calorie_target * 0.3) / 4), 'carbs_target': round((daily_calorie_target * 0.4) / 4), 'fats_target': round((daily_calorie_target * 0.3) / 9)}
+
+
+def _meal_slot_from_name(meal_type):
+    meal_key = str(meal_type or '').strip().lower()
+    return {
+        'breakfast': 'breakfast',
+        'lunch': 'lunch',
+        'dinner': 'dinner',
+        'snack': 'snacks',
+        'snacks': 'snacks',
+    }.get(meal_key, 'snacks')
+
+
+def _meal_label_from_slot(meal_type):
+    meal_key = str(meal_type or '').strip().lower()
+    return {
+        'breakfast': 'Breakfast',
+        'lunch': 'Lunch',
+        'dinner': 'Dinner',
+        'snack': 'Snack',
+        'snacks': 'Snack',
+    }.get(meal_key, 'Snack')
+
+
+def _daily_meal_log_uses_legacy_columns():
+    try:
+        return table_has_columns(
+            DailyMealLog._meta.db_table,
+            'breakfast_content', 'breakfast_calories',
+            'lunch_content', 'lunch_calories',
+            'dinner_content', 'dinner_calories',
+            'snacks_content', 'snacks_calories',
+        )
+    except Exception:
+        return False
+
+
+def _meal_log_entries_available():
+    try:
+        return table_has_columns(
+            MealLogEntry._meta.db_table,
+            'meal_log_id', 'meal_type', 'content', 'calories',
+        )
+    except Exception:
+        return False
+
+
+def _upsert_daily_meal_log_entry(meal_log, meal_type, content, calories):
+    meal_slot = _meal_slot_from_name(meal_type)
+    if _daily_meal_log_uses_legacy_columns() or not _meal_log_entries_available():
+        existing_content = ''
+        existing_calories = 0
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {meal_slot}_content, {meal_slot}_calories FROM {DailyMealLog._meta.db_table} WHERE id = %s",
+                [meal_log.pk],
+            )
+            row = cursor.fetchone()
+            if row:
+                existing_content = row[0] or ''
+                existing_calories = row[1] or 0
+
+        new_content = existing_content
+        if content:
+            if not existing_content:
+                new_content = content
+            elif content.lower() not in existing_content.lower():
+                new_content = existing_content + f"\n\n(Favorite):\n{content}"
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                UPDATE {DailyMealLog._meta.db_table}
+                SET {meal_slot}_content = %s,
+                    {meal_slot}_calories = COALESCE(%s, 0) + COALESCE(%s, 0)
+                WHERE id = %s
+                """,
+                [new_content, existing_calories, calories, meal_log.pk],
+            )
+        return
+
+    meal_label = _meal_label_from_slot(meal_slot)
+    entry, _ = meal_log.meal_entries.get_or_create(
+        meal_type=meal_label,
+        defaults={'content': '', 'calories': 0},
+    )
+
+    if content:
+        if entry.content:
+            entry.content = entry.content + f"\n\n({meal_label}):\n" + content
+        else:
+            entry.content = content
+
+    try:
+        entry.calories = float(entry.calories) + float(calories)
+    except (TypeError, ValueError):
+        pass
+    entry.save(update_fields=['content', 'calories'])
+
+
+def _save_favorite_food(profile, food_name, meal_type, target_date):
+    favorite_name = (food_name or '').strip()
+    meal_label = _meal_label_from_slot(meal_type)
+    if not favorite_name or meal_label not in {'Breakfast', 'Lunch', 'Dinner', 'Snack'}:
+        return None
+
+    favorite, created = FoodPreference.objects.get_or_create(
+        user_profile=profile,
+        food_name=favorite_name,
+        meal_type=meal_label,
+        day_of_week=target_date.strftime('%A'),
+        defaults={'is_favorite': True},
+    )
+    if not created and not favorite.is_favorite:
+        favorite.is_favorite = True
+        favorite.save(update_fields=['is_favorite'])
+    return favorite
 
 def build_current_status_report(profile, stats, weight_prediction):
     today = timezone.now().date()
@@ -469,7 +622,13 @@ def add_consumption_log(request):
         date_val = data.get('date') or timezone.now().date()
         if isinstance(date_val, str): date_val = timezone.datetime.strptime(date_val, '%Y-%m-%d').date()
         log = ConsumptionLog.objects.create(user_profile=request.user.profile, date=date_val, meal_type=data.get('meal_type', 'Snack'), food_item=food_item, quantity=float(data.get('quantity', 1.0)))
-        return JsonResponse(ConsumptionLogSerializer(log).data, status=201)
+        save_as_favorite = data.get('is_favorite') in (True, 'true', 'True', '1', 1)
+        favorite = None
+        if save_as_favorite:
+            favorite = _save_favorite_food(request.user.profile, food_item.name, log.meal_type, date_val)
+        response_data = ConsumptionLogSerializer(log).data
+        response_data['is_favorite'] = bool(favorite and favorite.is_favorite)
+        return JsonResponse(response_data, status=201)
     except Exception as e: return JsonResponse({'error': str(e)}, status=400)
 
 @csrf_exempt
@@ -497,7 +656,7 @@ def add_water_api(request):
     date_str = request.POST.get('date')
     target_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.now().date()
     action = request.POST.get('action', 'add')
-    water_log, created = WaterLog.objects.get_or_create(user_profile=profile, date=target_date, defaults={'target_glasses': profile.water_requirement_glasses})
+    water_log, created = WaterLog.objects.get_or_create(user_profile=profile, date=target_date)
     if action == 'add': water_log.amount_glasses += 1
     elif action == 'remove' and water_log.amount_glasses > 0: water_log.amount_glasses -= 1
     water_log.save()
@@ -514,11 +673,55 @@ def log_meal_api(request):
         plan = DailyDietPlan.objects.filter(user_profile=profile, date=date).first()
         if not plan: return JsonResponse({'error': 'No diet plan found for this date'}, status=404)
         meal_log, created = DailyMealLog.objects.get_or_create(user_profile=profile, date=date)
-        content, cals = getattr(plan, meal_type), getattr(plan, f"{meal_type}_calories")
-        setattr(meal_log, f"{meal_type}_content", content), setattr(meal_log, f"{meal_type}_calories", cals)
-        meal_log.save()
+        meal_slot = _meal_slot_from_name(meal_type)
+        content, cals = getattr(plan, meal_slot), getattr(plan, f"{meal_slot}_calories")
+        _upsert_daily_meal_log_entry(meal_log, meal_slot, content, cals)
+        meal_label = _meal_label_from_slot(meal_slot)
+        _save_favorite_food(profile, content, meal_label, date)
         return JsonResponse({'success': True, 'meal_type': meal_type, 'calories': cals, 'total_day': meal_log.total_calories_consumed})
     return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def log_favorite_api(request):
+    if request.content_type == 'application/json':
+        data = json.loads(request.body)
+    else:
+        data = request.POST
+
+    favorite_id = data.get('favorite_id')
+    if not favorite_id:
+        return JsonResponse({'success': False, 'error': 'Missing favorite id'}, status=400)
+
+    profile = request.user.profile
+    favorite = get_object_or_404(FoodPreference, id=favorite_id, user_profile=profile, is_favorite=True)
+
+    target_date = data.get('date') or timezone.now().date()
+    if isinstance(target_date, str):
+        try:
+            target_date = timezone.datetime.strptime(target_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'success': False, 'error': 'Invalid date'}, status=400)
+
+    meal_log, created = DailyMealLog.objects.get_or_create(user_profile=profile, date=target_date)
+
+    meal_type = favorite.meal_type if favorite.meal_type in {'Breakfast', 'Lunch', 'Dinner', 'Snack'} else 'Snack'
+    favorite_name = (favorite.resolved_food_name or favorite.food_name or '').strip()
+    if not favorite_name:
+        return JsonResponse({'success': False, 'error': 'Favorite has no food name'}, status=400)
+
+    favorite_content = f"- {favorite_name}"
+    _upsert_daily_meal_log_entry(meal_log, meal_type, favorite_content, 0)
+
+    return JsonResponse({
+        'success': True,
+        'meal_type': meal_type,
+        'favorite_name': favorite_name,
+        'date': str(target_date),
+        'total_day': meal_log.total_calories_consumed,
+    })
 
 @login_required
 def remove_meal_api(request):
@@ -549,14 +752,12 @@ def ai_coach_api(request):
         if recent_logs:
             context += "Recent meals: "
             for log in recent_logs: context += f"{log.meal_type}: {log.food_item.name} ({log.total_calories} kcal); "
-        api_key = settings.GEMINI_API_KEY
-        if not api_key: return JsonResponse({'error': 'Gemini API key not configured'}, status=500)
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
         prompt = f"You are a helpful nutrition assistant for NutriDiet. User context: {context}\nUser question: {user_query}"
-        response = model.generate_content(prompt)
+        response = _generate_gemini_content(prompt)
         return JsonResponse({'response': response.text})
-    except Exception as e: return JsonResponse({'error': f"Gemini Error: {str(e)}"}, status=500)
+    except Exception as e:
+        status = 429 if isinstance(e, GeminiQuotaError) else 500
+        return JsonResponse({'error': friendly_gemini_error(e)}, status=status)
 
 def get_diet_plan(request):
     redirect_res = verified_user_redirect(request)
@@ -575,10 +776,10 @@ def get_diet_plan(request):
     fav_map = {p.meal_type: p.food_name for p in preferences}
     
     meal_log = DailyMealLog.objects.filter(user_profile=profile, date=today).first()
-    return render(request, 'user_app/diet_plan.html', {
+    return _never_cache_response(render(request, 'user_app/diet_plan.html', {
         'plan': plan, 'profile': profile, 'meal_log': meal_log, 'plan_date': today,
         'fav_map': fav_map
-    })
+    }))
 
 def export_report_api(request):
     redirect_res = verified_user_redirect(request)
@@ -610,7 +811,7 @@ def export_report_api(request):
 def billing_view(request):
     redirect_res = verified_user_redirect(request)
     if redirect_res: return redirect_res
-    return render(request, 'user_app/billing.html', {'profile': request.user.profile, 'transactions': Transaction.objects.filter(user_profile=request.user.profile).order_by('-created_at'), 'plans': SubscriptionPlan.objects.all()})
+    return _never_cache_response(render(request, 'user_app/billing.html', {'profile': request.user.profile, 'transactions': Transaction.objects.filter(user_profile=request.user.profile).order_by('-created_at'), 'plans': SubscriptionPlan.objects.all()}))
 
 @csrf_exempt
 @login_required
@@ -621,12 +822,36 @@ def process_payment_api(request):
         data = json.loads(request.body)
         plan = SubscriptionPlan.objects.get(id=data.get('plan_id'))
         txn_id = f"NUTRI-{uuid.uuid4().hex[:8].upper()}"
-        Transaction.objects.create(user_profile=profile, transaction_id=txn_id, amount=plan.amount, payment_method=data.get('payment_method'), status='Success', plan=plan)
-        profile.subscription_status = 'Pro'
+        payment_status = 'Failed' if data.get('simulate_failure') or data.get('status') == 'Failed' else 'Success'
+        Transaction.objects.create(
+            user_profile=profile,
+            transaction_id=txn_id,
+            amount=plan.amount,
+            payment_method=data.get('payment_method'),
+            status=payment_status,
+            plan=plan,
+        )
+        if payment_status != 'Success':
+            return JsonResponse({
+                'success': False,
+                'message': 'Payment failed.',
+                'transaction_id': txn_id,
+            })
+
         from datetime import date, timedelta
-        current_expiry = profile.subscription_expires
-        profile.subscription_expires = (current_expiry if current_expiry and current_expiry > date.today() else date.today()) + timedelta(days=plan.duration_days)
-        profile.save()
+        from api.models import UserSubscription
+        if table_has_columns('user_subscriptions', 'user_profile_id', 'plan_id'):
+            active_sub = profile.active_subscription
+            if active_sub:
+                current_expiry = active_sub.expires_at
+                active_sub.expires_at = (current_expiry if current_expiry and current_expiry > date.today() else date.today()) + timedelta(days=plan.duration_days)
+                active_sub.plan = plan
+                active_sub.save()
+            else:
+                UserSubscription.objects.create(
+                    user_profile=profile, plan=plan, status='Active',
+                    started_at=date.today(), expires_at=date.today() + timedelta(days=plan.duration_days)
+                )
         return JsonResponse({'success': True, 'message': 'Payment successful!', 'transaction_id': txn_id})
     except Exception as e: return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
@@ -650,7 +875,30 @@ def download_invoice_api(request, transaction_id):
 @login_required
 def api_get_water_requirement(request):
     weight = request.GET.get('weight') or request.user.profile.weight
-    data = get_water_recommendation(weight)
+    try:
+        weight_value = round(float(weight), 1)
+    except (TypeError, ValueError):
+        weight_value = round(float(request.user.profile.weight), 1)
+
+    cache_key = f"water_requirement:{weight_value}"
+    cache_entry = request.session.get(cache_key, {})
+    cache_expires_at = cache_entry.get('expires_at')
+    if cache_expires_at:
+        try:
+            expires_dt = timezone.datetime.fromisoformat(cache_expires_at)
+            if timezone.is_naive(expires_dt):
+                expires_dt = timezone.make_aware(expires_dt, timezone.get_current_timezone())
+            if expires_dt > timezone.now() and isinstance(cache_entry.get('data'), dict):
+                return JsonResponse(cache_entry['data'])
+        except ValueError:
+            pass
+
+    data = get_water_recommendation(weight_value)
+    request.session[cache_key] = {
+        'expires_at': (timezone.now() + timezone.timedelta(hours=12)).isoformat(),
+        'data': data,
+    }
+    request.session.modified = True
     return JsonResponse(data)
 
 @login_required
@@ -662,13 +910,54 @@ def api_logs_by_date(request):
     profile = request.user.profile
     manual_logs = ConsumptionLog.objects.filter(user_profile=profile, date=date)
     diet_logs = DailyMealLog.objects.filter(user_profile=profile, date=date).first()
+    favorite_names = {
+        (pref.resolved_food_name or pref.food_name or '').strip().lower()
+        for pref in FoodPreference.objects.filter(
+            user_profile=profile,
+            day_of_week=date.strftime('%A'),
+            is_favorite=True,
+        )
+    }
     activity = []
-    for log in manual_logs: activity.append({'source': 'food_log', 'meal_type': log.meal_type, 'title': log.food_item.name, 'calories': log.total_calories, 'id': log.id})
+    for log in manual_logs:
+        title = log.food_item.name
+        activity.append({
+            'source': 'food_log',
+            'meal_type': log.meal_type,
+            'title': title,
+            'calories': log.total_calories,
+            'id': log.id,
+            'is_favorite': title.strip().lower() in favorite_names,
+        })
     if diet_logs:
-        meal_labels = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner', 'snacks': 'Snack'}
-        for key in ('breakfast', 'lunch', 'dinner', 'snacks'):
-            content = getattr(diet_logs, f'{key}_content', '')
-            if content: activity.append({'source': 'diet_plan', 'meal_type': meal_labels[key], 'title': content.splitlines()[0].lstrip('- ').strip(), 'calories': getattr(diet_logs, f'{key}_calories', 0), 'details': content})
+        if _daily_meal_log_uses_legacy_columns() or not _meal_log_entries_available():
+            meal_labels = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner', 'snacks': 'Snack'}
+            for key in ('breakfast', 'lunch', 'dinner', 'snacks'):
+                content = getattr(diet_logs, f'{key}_content', '')
+                if not content:
+                    continue
+                title = content.splitlines()[0].lstrip('- ').strip()
+                activity.append({
+                    'source': 'diet_plan',
+                    'meal_type': meal_labels[key],
+                    'title': title,
+                    'calories': getattr(diet_logs, f'{key}_calories', 0),
+                    'details': content,
+                    'is_favorite': title.strip().lower() in favorite_names,
+                })
+        else:
+            for entry in MealLogEntry.objects.filter(meal_log=diet_logs).order_by('id'):
+                title = (entry.content or '').splitlines()[0].lstrip('- ').strip()
+                if not title:
+                    title = f"{entry.meal_type} meal"
+                activity.append({
+                    'source': 'diet_plan',
+                    'meal_type': entry.meal_type,
+                    'title': title,
+                    'calories': entry.calories,
+                    'details': entry.content,
+                    'is_favorite': title.strip().lower() in favorite_names,
+                })
     water_log = WaterLog.objects.filter(user_profile=profile, date=date).first()
     water_data = {'amount': water_log.amount_glasses if water_log else 0, 'target': water_log.target_glasses if water_log else profile.water_requirement_glasses}
     return JsonResponse({'success': True, 'activity': activity, 'water': water_data})
@@ -699,11 +988,12 @@ def toggle_food_preference_api(request):
             pref.is_favorite = not pref.is_favorite
             pref.save()
             
-        return JsonResponse({'success': True, 'is_favorite': pref.is_favorite})
+        return JsonResponse({'success': True, 'is_favorite': pref.is_favorite, 'favorite_id': pref.id})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 def logout_view(request):
     if request.user.is_authenticated: logout(request)
     request.session.flush()
-    return redirect('landing')
+    response = redirect('landing')
+    return _never_cache_response(response)

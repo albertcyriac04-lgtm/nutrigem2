@@ -593,9 +593,10 @@ function forceFail(){if(!vAll())return;ff=true;run();}
 function run(){
   $id('procOverlay').classList.add('show');
   const m=aTab()==='t-card'?'Card':aTab()==='t-upi'?'UPI':aTab()==='t-nb'?'Net Banking':'Wallet';
-  fetch('/api/process-payment/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({plan_id:P.id,payment_method:m})})
-  .then(r=>r.json()).then(d=>{setTimeout(()=>{$id('procOverlay').classList.remove('show');if(ff){ff=false;fail();return;}d.success?ok(d.transaction_id||null):fail();},2400);})
-  .catch(()=>{setTimeout(()=>{$id('procOverlay').classList.remove('show');if(ff||Math.random()<.1){ff=false;fail();}else ok(null);},2400);});
+  const simulateFailure=ff; ff=false;
+  fetch('/api/process-payment/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({plan_id:P.id,payment_method:m,simulate_failure:simulateFailure})})
+  .then(r=>r.json()).then(d=>{setTimeout(()=>{$id('procOverlay').classList.remove('show');d.success?ok(d.transaction_id||null):fail();},2400);})
+  .catch(()=>{setTimeout(()=>{$id('procOverlay').classList.remove('show');fail();},2400);});
 }
 function ok(txn){sndOk();const id=txn||'#ND'+Math.random().toString().slice(2,10),t=$id('sTot').textContent,ds=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});$id('rTxn').textContent=id;$id('rPlan').textContent=P.name;$id('rAmt').textContent=t;$id('rDate').textContent=ds;$id('co-form').style.display='none';$id('co-ok').style.display='block';$id('co-fail').style.display='none';confetti();}
 function fail(){sndFail();$id('co-form').style.display='none';$id('co-ok').style.display='none';$id('co-fail').style.display='block';}

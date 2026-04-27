@@ -4,7 +4,9 @@ from django.contrib.auth.models import User
 from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse, path
 from django.utils import timezone
+from django.db import connection
 from django.db.models import Sum, Count
+from django.db.utils import OperationalError, ProgrammingError
 from django.template.response import TemplateResponse
 import json
 from datetime import timedelta
@@ -43,6 +45,54 @@ class NutriDietAdminSite(AdminSite):
         auth_logout(request)
         return HttpResponseRedirect(reverse("landing"))
 
+    def _table_columns(self, table_name):
+        try:
+            with connection.cursor() as cursor:
+                columns = connection.introspection.get_table_description(cursor, table_name)
+        except (OperationalError, ProgrammingError):
+            return set()
+        return {column.name for column in columns}
+
+    def _has_table_columns(self, table_name, *column_names):
+        return set(column_names).issubset(self._table_columns(table_name))
+
+    def _count_pro_users(self, UserProfile, Transaction, start_date=None, end_date=None):
+        if self._has_table_columns('user_subscriptions', 'user_profile_id', 'plan_id'):
+            qs = UserProfile.objects.filter(
+                subscriptions__status='Active',
+            ).exclude(
+                subscriptions__plan__billing_cycle='free',
+            )
+            if start_date and end_date:
+                qs = qs.filter(
+                    subscriptions__created_at__date__gte=start_date,
+                    subscriptions__created_at__date__lte=end_date,
+                )
+            try:
+                return qs.distinct().count()
+            except (OperationalError, ProgrammingError):
+                pass
+
+        if self._has_table_columns(UserProfile._meta.db_table, 'subscription_status'):
+            qs = UserProfile.objects.filter(subscription_status='Pro')
+            if start_date and end_date:
+                qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+            try:
+                return qs.count()
+            except (OperationalError, ProgrammingError):
+                pass
+
+        if self._has_table_columns(Transaction._meta.db_table, 'user_profile_id', 'plan_id'):
+            qs = Transaction.objects.filter(status='Success').exclude(plan__billing_cycle='free')
+            if start_date and end_date:
+                qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+            try:
+                return qs.values('user_profile_id').distinct().count()
+            except (OperationalError, ProgrammingError):
+                pass
+
+        return 0
+
     def _build_dashboard_stats(self):
         from api.models import (
             UserProfile, FoodItem, ConsumptionLog, WeightRecord,
@@ -55,7 +105,7 @@ class NutriDietAdminSite(AdminSite):
 
         total_users = User.objects.filter(is_staff=False).count()
         new_users_week = User.objects.filter(date_joined__date__gte=week_ago, is_staff=False).count()
-        pro_users = UserProfile.objects.filter(subscription_status='Pro').count()
+        pro_users = self._count_pro_users(UserProfile, Transaction)
         pro_percentage = round((pro_users / total_users * 100), 1) if total_users > 0 else 0
         total_revenue = Transaction.objects.filter(status='Success').aggregate(total=Sum('amount'))['total'] or 0
         total_transactions = Transaction.objects.filter(status='Success').count()
@@ -183,9 +233,7 @@ class NutriDietAdminSite(AdminSite):
             filtered_users = User.objects.filter(
                 date_joined__date__gte=start_date, date_joined__date__lte=end_date
             ).count()
-            filtered_pro = UserProfile.objects.filter(
-                subscription_status='Pro', created_at__date__gte=start_date, created_at__date__lte=end_date
-            ).count()
+            filtered_pro = self._count_pro_users(UserProfile, Transaction, start_date, end_date)
             filtered_expenses = AdminExpense.objects.filter(
                 date__gte=start_date, date__lte=end_date
             ).aggregate(total=Sum('amount'))['total'] or 0

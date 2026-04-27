@@ -106,6 +106,10 @@
     <!-- Synthetic Results -->
     <div id="resultsContent" class="hidden mt-12 space-y-12">
         <div class="h-px bg-slate-100 w-full"></div>
+        <div id="plannerNotice" class="hidden rounded-3xl border border-amber-200 bg-amber-50 px-6 py-4">
+            <p class="text-xs font-black uppercase tracking-widest text-amber-600 mb-1">Planner Notice</p>
+            <p id="plannerNoticeText" class="text-sm font-bold text-amber-900"></p>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <!-- BMI Node -->
@@ -230,7 +234,10 @@ document.getElementById('dietForm').addEventListener('submit', function(e) {
         renderDietResults(res);
     })
     .catch(err => {
-        alert("System Overload: " + err.message);
+        const fallbackMsg = "AI plan could not be generated: " + err.message + "\n\nWould you like to select a meal from your Favorites instead?";
+        if (confirm(fallbackMsg)) {
+            window.location.href = "{% url 'favorites' %}";
+        }
     })
     .finally(() => {
         btn.disabled = false;
@@ -241,6 +248,8 @@ document.getElementById('dietForm').addEventListener('submit', function(e) {
 function renderDietResults(res) {
     const data = res.data;
     const results = document.getElementById('resultsContent');
+    const plannerNotice = document.getElementById('plannerNotice');
+    const plannerNoticeText = document.getElementById('plannerNoticeText');
     
     // BMI Logic
     const colorMap = {
@@ -278,6 +287,13 @@ function renderDietResults(res) {
         document.getElementById('medicalAlert').classList.remove('hidden');
     } else {
         document.getElementById('medicalAlert').classList.add('hidden');
+    }
+
+    if (res._meta?.fallback || res.error) {
+        plannerNoticeText.innerText = data.medical_alert || res.error || 'Gemini is unavailable right now, so these suggestions were prepared from your saved profile.';
+        plannerNotice.classList.remove('hidden');
+    } else {
+        plannerNotice.classList.add('hidden');
     }
 
     // Hydration Level

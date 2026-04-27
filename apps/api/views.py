@@ -7,13 +7,61 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 import json
+import hashlib
 
-from .models import UserProfile, FoodItem, ConsumptionLog, WeightRecord, DailyMealLog
+from .models import UserProfile, FoodItem, ConsumptionLog, WeightRecord, DailyMealLog, MealLogEntry, FoodPreference
 from .serializers import (
     UserProfileSerializer, UserProfileListSerializer,
     FoodItemSerializer, ConsumptionLogSerializer, WeightRecordSerializer
 )
 from .ai_utils import generate_diet_plan, save_advanced_diet_to_db
+
+
+DIET_PLAN_COOLDOWN_SECONDS = 60
+DIET_PLAN_CACHE_SESSION_KEY = 'diet_plan_cache'
+
+
+def _payload_signature(payload):
+    normalized = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
+
+def _get_cached_diet_plan(request, signature):
+    cache = request.session.get(DIET_PLAN_CACHE_SESSION_KEY, {})
+    if (
+        cache.get('date') == str(timezone.now().date())
+        and cache.get('payload_signature') == signature
+        and isinstance(cache.get('result'), dict)
+    ):
+        result = dict(cache['result'])
+        result['_meta'] = {**result.get('_meta', {}), 'cached': True}
+        return result
+    return None
+
+
+def _store_cached_diet_plan(request, signature, result):
+    request.session[DIET_PLAN_CACHE_SESSION_KEY] = {
+        'date': str(timezone.now().date()),
+        'payload_signature': signature,
+        'generated_at': timezone.now().isoformat(),
+        'result': result,
+    }
+    request.session.modified = True
+
+
+def _diet_plan_cooldown_remaining(request):
+    cache = request.session.get(DIET_PLAN_CACHE_SESSION_KEY, {})
+    generated_at = cache.get('generated_at')
+    if not generated_at:
+        return 0
+    try:
+        generated_dt = timezone.datetime.fromisoformat(generated_at)
+    except ValueError:
+        return 0
+    if timezone.is_naive(generated_dt):
+        generated_dt = timezone.make_aware(generated_dt, timezone.get_current_timezone())
+    elapsed = (timezone.now() - generated_dt).total_seconds()
+    return max(int(DIET_PLAN_COOLDOWN_SECONDS - elapsed), 0)
 
 
 # ══════════════════════════════════════════════════════════
@@ -166,20 +214,37 @@ def diet_planner_page(request):
 
 
 @csrf_exempt
+@login_required
 def diet_plan_api(request):
     """Generates an advanced AI diet plan via Gemini and saves it to DB."""
     if request.method == "POST":
         try:
             profile_data = json.loads(request.body)
+            signature = _payload_signature(profile_data)
+
+            cached_result = _get_cached_diet_plan(request, signature)
+            if cached_result:
+                return JsonResponse(cached_result)
+
+            cooldown_remaining = _diet_plan_cooldown_remaining(request)
+            if cooldown_remaining:
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Please wait {cooldown_remaining} seconds before generating another Gemini plan.",
+                    "retry_after": cooldown_remaining,
+                }, status=429)
+
             result = generate_diet_plan(profile_data)
 
-            if result.get("success") and request.user.is_authenticated:
+            if result.get("success"):
                 save_advanced_diet_to_db(request.user.profile, result['data'])
+                _store_cached_diet_plan(request, signature, result)
 
             if result.get("success"):
                 return JsonResponse(result)
             else:
-                return JsonResponse(result, status=500)
+                status = 429 if "quota" in result.get("error", "").lower() else 500
+                return JsonResponse(result, status=status)
         except Exception as e:
             return JsonResponse({"success": False, "error": str(e)}, status=400)
     return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -201,25 +266,51 @@ def log_advanced_meal_api(request):
 
             meal_log, created = DailyMealLog.objects.get_or_create(user_profile=profile, date=today)
 
-            target_prefix = 'snacks'
+            meal_type = 'Snack'
             m_lower = meal_name.lower()
             if 'breakfast' in m_lower:
-                target_prefix = 'breakfast'
+                meal_type = 'Breakfast'
             elif 'lunch' in m_lower:
-                target_prefix = 'lunch'
+                meal_type = 'Lunch'
             elif 'dinner' in m_lower:
-                target_prefix = 'dinner'
+                meal_type = 'Dinner'
 
             content = "\n".join([f"- {f}" for f in foods])
-            existing_content = getattr(meal_log, f"{target_prefix}_content")
-            if existing_content:
-                setattr(meal_log, f"{target_prefix}_content", existing_content + f"\n\n({meal_name}):\n" + content)
+            entry, _ = MealLogEntry.objects.get_or_create(
+                meal_log=meal_log,
+                meal_type=meal_type,
+                defaults={'content': '', 'calories': 0},
+            )
+            if entry.content:
+                entry.content = entry.content + f"\n\n({meal_name}):\n" + content
             else:
-                setattr(meal_log, f"{target_prefix}_content", content)
+                entry.content = content
 
-            setattr(meal_log, f"{target_prefix}_calories",
-                    getattr(meal_log, f"{target_prefix}_calories") + float(cals))
-            meal_log.save()
+            try:
+                entry.calories = float(entry.calories) + float(cals)
+            except (TypeError, ValueError):
+                pass
+            entry.save(update_fields=['content', 'calories'])
+
+            meal_type_key = 'Snack'
+            meal_name_lower = meal_name.lower()
+            if 'breakfast' in meal_name_lower:
+                meal_type_key = 'Breakfast'
+            elif 'lunch' in meal_name_lower:
+                meal_type_key = 'Lunch'
+            elif 'dinner' in meal_name_lower:
+                meal_type_key = 'Dinner'
+
+            favorite, created = FoodPreference.objects.get_or_create(
+                user_profile=profile,
+                food_name=content.strip(),
+                meal_type=meal_type_key,
+                day_of_week=today.strftime('%A'),
+                defaults={'is_favorite': True},
+            )
+            if not created and not favorite.is_favorite:
+                favorite.is_favorite = True
+                favorite.save(update_fields=['is_favorite'])
 
             return JsonResponse({"success": True})
         except Exception as e:

@@ -57,9 +57,40 @@
                             </select>
                         </div>
                     </div>
+                    <label class="flex items-center gap-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-slate-700">
+                        <input type="checkbox" name="is_favorite" class="h-4 w-4 rounded border-slate-300 text-rose-500 focus:ring-rose-400">
+                        <span>Save this food as a favorite too</span>
+                    </label>
                     <button type="submit" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm hover:bg-black transition-all shadow-xl">Commit Log Entry</button>
                 </form>
             </div>
+
+            {% if favorite_foods %}
+            <div class="bg-white rounded-[2rem] border border-slate-50 p-6 shadow-sm">
+                <div class="flex items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Favorite Foods</h3>
+                        <p class="text-sm font-bold text-slate-500 mt-1">Add a saved favorite straight into the active date.</p>
+                    </div>
+                    <a href="{% url 'favorites' %}" class="text-xs font-black uppercase tracking-widest text-rose-500 hover:text-rose-600">View all</a>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {% for fav in favorite_foods %}
+                    <button
+                        type="button"
+                        onclick="logFavoriteToActiveDate({{ fav.id }}, this)"
+                        class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-left hover:bg-slate-100 transition-colors"
+                    >
+                        <span class="min-w-0">
+                            <span class="block text-[10px] font-black uppercase tracking-widest text-slate-400">{{ fav.meal_type }}</span>
+                            <span class="block truncate text-sm font-black text-slate-700">{{ fav.resolved_food_name|default:fav.food_name }}</span>
+                        </span>
+                        <span class="shrink-0 text-rose-500"><i class="fas fa-plus-circle"></i></span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- LOGS CONTAINER -->
             <div id="dailyLogsContainer" class="space-y-4">
@@ -276,7 +307,7 @@
         let html = '';
         for (const [type, items] of Object.entries(groups)) {
             if (items.length === 0) continue;
-            html += `<div class="bg-white rounded-[2rem] p-6 border border-slate-50 shadow-sm hover:shadow-md transition-shadow"><div class="flex items-center gap-2 mb-4"><span class="w-1.5 h-1.5 rounded-full ${type==='Breakfast'?'bg-amber-400':type==='Lunch'?'bg-emerald-400':type==='Dinner'?'bg-indigo-400':'bg-pink-400'}"></span><h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${type}</h3></div><div class="space-y-4">${items.map(item => `<div class="flex items-center justify-between"><div class="space-y-1"><p class="text-sm font-black text-slate-700">${item.title}</p>${item.details ? `<p class="text-[9px] text-slate-400 leading-relaxed max-w-sm line-clamp-1 italic">${item.details}</p>` : ''}</div><div class="text-right"><p class="text-xs font-black text-slate-800">+${item.calories} kcal</p><span class="px-2 py-0.5 bg-slate-50 text-[8px] font-black text-slate-300 uppercase rounded">${item.source==='diet_plan'?'Synth':'Manual'}</span></div></div>`).join('')}</div></div>`;
+            html += `<div class="bg-white rounded-[2rem] p-6 border border-slate-50 shadow-sm hover:shadow-md transition-shadow"><div class="flex items-center gap-2 mb-4"><span class="w-1.5 h-1.5 rounded-full ${type==='Breakfast'?'bg-amber-400':type==='Lunch'?'bg-emerald-400':type==='Dinner'?'bg-indigo-400':'bg-pink-400'}"></span><h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${type}</h3></div><div class="space-y-4">${items.map(item => `<div class="flex items-center justify-between gap-4"><div class="min-w-0 space-y-1"><p class="text-sm font-black text-slate-700">${item.title}</p>${item.details ? `<p class="text-[9px] text-slate-400 leading-relaxed max-w-sm line-clamp-1 italic">${item.details}</p>` : ''}</div><div class="flex items-center gap-2 shrink-0"><button type="button" onclick="toggleFavoriteFromLog('${escapeJs(item.title)}', '${item.meal_type}', this)" class="h-10 w-10 rounded-2xl border ${item.is_favorite ? 'border-rose-200 bg-rose-50 text-rose-500' : 'border-slate-200 bg-white text-slate-400 hover:text-rose-500 hover:border-rose-200'} transition-colors" title="${item.is_favorite ? 'Remove favorite' : 'Add favorite'}" aria-label="${item.is_favorite ? 'Remove favorite' : 'Add favorite'}"><i class="${item.is_favorite ? 'fas' : 'far'} fa-heart"></i></button><div class="text-right"><p class="text-xs font-black text-slate-800">+${item.calories} kcal</p><span class="px-2 py-0.5 bg-slate-50 text-[8px] font-black text-slate-300 uppercase rounded">${item.source==='diet_plan'?'Synth':'Manual'}</span></div></div></div>`).join('')}</div></div>`;
         }
         container.innerHTML = html;
     }
@@ -324,11 +355,78 @@
         e.preventDefault();
         const formData = new FormData(e.target);
         const dateStr = formatDate(activeDate);
-        const payload = { food_item_id: formData.get('food_item_id'), meal_type: formData.get('meal_type'), date: dateStr, quantity: 1 };
+        const payload = {
+            food_item_id: formData.get('food_item_id'),
+            meal_type: formData.get('meal_type'),
+            date: dateStr,
+            quantity: 1,
+            is_favorite: formData.get('is_favorite') === 'on'
+        };
         try {
             const res = await fetch('/api/add-log/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(payload) });
-            if (res.ok) { toggleLogForm(); loadDailyState(dateStr); }
+            if (res.ok) {
+                e.target.reset();
+                toggleLogForm();
+                loadDailyState(dateStr);
+            }
         } catch (e) { alert("Buffer Overflow: Log record rejected."); }
+    }
+
+    async function toggleFavoriteFromLog(foodName, mealType, btn) {
+        const dateStr = formatDate(activeDate);
+        const dayOfWeek = new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/toggle-favorite/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ food_name: foodName, meal_type: mealType, day_of_week: dayOfWeek })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                alert(data.error || 'Failed to update favorite');
+                return;
+            }
+            loadDailyState(dateStr);
+        } catch (e) {
+            alert('Failed to update favorite');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function logFavoriteToActiveDate(favoriteId, btn) {
+        const dateStr = formatDate(activeDate);
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="text-sm font-black text-slate-500">Adding...</span>`;
+        try {
+            const res = await fetch('/api/log-favorite/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ favorite_id: favoriteId, date: dateStr })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                alert(data.error || 'Failed to add favorite');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                return;
+            }
+            btn.innerHTML = `<span class="text-sm font-black text-emerald-600">Added</span>`;
+            loadDailyState(dateStr);
+        } catch (e) {
+            alert('Failed to add favorite');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+
+    function escapeJs(value) {
+        return String(value)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '&quot;');
     }
 
     function formatDate(date) {
